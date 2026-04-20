@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Search, MoreVertical, Eye, Edit, Trash2 } from "lucide-react";
+import { useRole } from "@/contexts/RoleContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -14,6 +15,7 @@ import { toast } from "sonner";
 
 export default function EmployeeList() {
   const navigate = useNavigate();
+  const { can } = useRole();
   const [searchQuery, setSearchQuery] = useState("");
   const employees = getEmployees();
 
@@ -41,9 +43,11 @@ export default function EmployeeList() {
   return (
     <div className="space-y-4">
       <PageHeader title="Employees" description="Manage your organisation's workforce">
-        <Button onClick={() => navigate("/employees/add")} className="gap-2">
-          <Plus className="h-4 w-4" />Add Employee
-        </Button>
+        {can("manage_employees") && (
+          <Button onClick={() => navigate("/employees/add")} className="gap-2">
+            <Plus className="h-4 w-4" />Add Employee
+          </Button>
+        )}
       </PageHeader>
 
       {/* Search */}
@@ -86,8 +90,8 @@ export default function EmployeeList() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => navigate(`/employees/${emp.id}`)}><Eye className="mr-2 h-4 w-4" />View Details</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => navigate(`/employees/${emp.id}`)}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(emp.id)}><Trash2 className="mr-2 h-4 w-4" />Delete</DropdownMenuItem>
+                      {can("manage_employees") && <DropdownMenuItem onClick={() => navigate(`/employees/${emp.id}`)}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>}
+                      {can("delete") && <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(emp.id)}><Trash2 className="mr-2 h-4 w-4" />Delete</DropdownMenuItem>}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>

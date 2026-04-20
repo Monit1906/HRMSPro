@@ -1,17 +1,25 @@
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useCallback, memo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
 import { initializeMockData } from "@/lib/mockData";
+import { cn } from "@/lib/utils";
 
-interface LayoutProps { children: ReactNode }
+interface LayoutProps {
+  children: ReactNode;
+}
 
-export default function Layout({ children }: LayoutProps) {
-  const { pathname } = useLocation();
-  const isCheckInPage = pathname === "/attendance/checkin";
+function Layout({ children }: LayoutProps) {
+  const location = useLocation();
+  const isCheckInPage = location.pathname === "/attendance/checkin";
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Run once on mount — idempotent
   useEffect(() => { initializeMockData(); }, []);
+
+  // Close sidebar on route change (mobile)
+  useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
+
+  const toggleSidebar = useCallback(() => setSidebarOpen((p) => !p), []);
 
   if (isCheckInPage) {
     return <div className="min-h-screen bg-background">{children}</div>;
@@ -19,13 +27,35 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <aside className="w-64 shrink-0 border-r overflow-y-auto">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-20 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={cn(
+          "fixed lg:static inset-y-0 left-0 z-30 w-64 shrink-0 border-r bg-background overflow-y-auto transition-transform duration-200",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        )}
+      >
         <Sidebar />
       </aside>
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+
+      {/* Main */}
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        <Header onMenuToggle={toggleSidebar} sidebarOpen={sidebarOpen} />
+        <main className="flex-1 overflow-y-auto touch-scroll">
+          <div className="p-4 sm:p-6 max-w-screen-2xl mx-auto">
+            {children}
+          </div>
+        </main>
       </div>
     </div>
   );
 }
+
+export default memo(Layout);

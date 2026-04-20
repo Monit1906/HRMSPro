@@ -15,18 +15,18 @@ interface StatCardProps {
 export default function StatCard({ title, value, sub, icon, iconClass, onClick, className }: StatCardProps) {
   return (
     <Card
-      className={cn("transition-shadow", onClick && "cursor-pointer hover:shadow-md", className)}
+      className={cn("transition-shadow", onClick && "cursor-pointer hover:shadow-md active:scale-[0.98] transition-transform", className)}
       onClick={onClick}
     >
-      <CardContent className="p-4 flex items-start gap-3">
+      <CardContent className="p-3 sm:p-4 flex items-start gap-2 sm:gap-3">
         {icon && (
           <div className={cn("p-2 rounded-lg shrink-0", iconClass ?? "bg-primary/10 text-primary")}>
             {icon}
           </div>
         )}
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-xs text-muted-foreground truncate">{title}</p>
-          <p className="text-xl font-bold truncate">{value}</p>
+          <p className="text-lg sm:text-xl font-bold truncate">{value}</p>
           {sub && <p className="text-xs text-muted-foreground truncate mt-0.5">{sub}</p>}
         </div>
       </CardContent>

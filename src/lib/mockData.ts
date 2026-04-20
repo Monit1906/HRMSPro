@@ -161,7 +161,13 @@ export function getCompanySettings(): CompanySettings {
 export function setCompanySettings(v: CompanySettings) { localStorage.setItem("hrms_companySettings", JSON.stringify(v)); }
 
 export function getCurrentUser() {
-  return { id: "3", name: "Emily Rodriguez", role: "HR Manager", email: "emily@techcorp.com" };
+  const savedId = localStorage.getItem("hrms_current_user_id") || "3";
+  const userMap: Record<string, { id: string; name: string; role: string; email: string }> = {
+    "1": { id: "1", name: "Rahul Sharma",    role: "Employee",   email: "rahul@techcorp.com" },
+    "2": { id: "2", name: "Priya Patel",     role: "Admin",      email: "priya@techcorp.com" },
+    "3": { id: "3", name: "Emily Rodriguez", role: "HR Manager", email: "emily@techcorp.com" },
+  };
+  return userMap[savedId] ?? userMap["3"];
 }
 
 // ─── Seed data initialization ─────────────────────────────────────────────────

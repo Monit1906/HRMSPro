@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Search, CheckCircle, XCircle, Clock, Download } from "lucide-react";
+import { useRole } from "@/contexts/RoleContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +28,7 @@ export default function LeaveApplicationList() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
 
+  const { can } = useRole();
   const applications = getLeaveApplications();
   const leaveTypes = getLeaveTypes();
 
@@ -141,7 +143,7 @@ export default function LeaveApplicationList() {
                 <TableCell className="text-sm">{formatDate(app.appliedOn)}</TableCell>
                 <TableCell><StatusBadge status={app.status} /></TableCell>
                 <TableCell>
-                  {app.status === "Pending" && (
+                  {app.status === "Pending" && can("approve_leave") && (
                     <div className="flex gap-1">
                       <Button size="sm" className="h-7 gap-1" onClick={() => handleApprove(app.id)}><CheckCircle className="h-3 w-3" />Approve</Button>
                       <Button size="sm" variant="destructive" className="h-7 gap-1" onClick={() => { setSelectedId(app.id); setRejectDialogOpen(true); }}><XCircle className="h-3 w-3" />Reject</Button>
