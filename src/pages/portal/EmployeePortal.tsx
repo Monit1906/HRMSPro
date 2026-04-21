@@ -1,20 +1,24 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Clock, Calendar, DollarSign, User, ChevronRight, Plus, MapPin, CheckCircle, XCircle,
+  Clock, Calendar, DollarSign, ChevronRight, Plus, MapPin,
+  CheckCircle, XCircle, Edit, Save, X, User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  getAttendance, setAttendance, getBranches, getCurrentUser, getEmployees,
+  getAttendance, setAttendance, getBranches, getEmployees, setEmployees,
   getLeaveApplications, setLeaveApplications, getLeaveTypes, getPayroll, getHolidays,
 } from "@/lib/mockData";
+import { useRole } from "@/contexts/RoleContext";
 import { useGeolocation, haversineMeters } from "@/hooks/useGeolocation";
 import StatusBadge from "@/components/ui/StatusBadge";
 import StatCard from "@/components/ui/StatCard";
@@ -23,14 +27,24 @@ import { formatDate } from "@/lib/utils";
 
 export default function EmployeePortal() {
   const navigate = useNavigate();
+  const { user } = useRole();
+
   const [currentTime, setCurrentTime] = useState(new Date());
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [leaveForm, setLeaveForm] = useState({ leaveType: "", startDate: "", endDate: "", reason: "" });
-  const { coords, loading, detect } = useGeolocation();
+  const [editingProfile, setEditingProfile] = useState(false);
+  const { coords, loading: locLoading, detect } = useGeolocation();
 
-  const currentUser = getCurrentUser();
+  // Derive the employee record for the logged-in user
   const employees = getEmployees();
-  const currentEmployee = employees.find((e) => e.id === currentUser?.id);
+  const currentEmployee = employees.find((e) => e.id === user.id);
+
+  const [profileForm, setProfileForm] = useState({
+    phone: currentEmployee?.phone ?? "",
+    address: currentEmployee?.address ?? "",
+    emergencyContact: currentEmployee?.emergencyContact ?? "",
+  });
+
   const branches = getBranches();
   const attendance = getAttendance();
   const leaveApplications = getLeaveApplications();
@@ -39,58 +53,62 @@ export default function EmployeePortal() {
   const holidays = getHolidays();
 
   const today = new Date().toISOString().split("T")[0];
-  const todayRecord = attendance.find((a) => a.employeeId === currentUser?.id && a.date === today);
+  const todayRecord = attendance.find((a) => a.employeeId === user.id && a.date === today);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const myLeaves = useMemo(() => leaveApplications.filter((a) => a.employeeId === currentUser?.id), [leaveApplications, currentUser]);
+  // Employee-scoped data (only their own records)
+  const myLeaves = useMemo(() => leaveApplications.filter((a) => a.employeeId === user.id), [leaveApplications, user.id]);
   const pendingLeaves = useMemo(() => myLeaves.filter((a) => a.status === "Pending"), [myLeaves]);
   const approvedLeaves = useMemo(() => myLeaves.filter((a) => a.status === "Approved"), [myLeaves]);
   const totalLeaveDays = useMemo(() => approvedLeaves.reduce((s, a) => s + a.days, 0), [approvedLeaves]);
-  const myPayroll = useMemo(() => payroll.filter((p) => p.employeeId === currentUser?.id).sort((a, b) => b.month.localeCompare(a.month)), [payroll, currentUser]);
+  const myPayroll = useMemo(() =>
+    payroll.filter((p) => p.employeeId === user.id).sort((a, b) => b.month.localeCompare(a.month)),
+    [payroll, user.id]);
   const latestSlip = myPayroll[0];
   const upcomingHolidays = useMemo(() =>
-    holidays.filter((h) => new Date(h.date) >= new Date()).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 3),
+    holidays.filter((h) => new Date(h.date) >= new Date()).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 4),
     [holidays]);
   const myAttendance = useMemo(() =>
-    attendance.filter((a) => a.employeeId === currentUser?.id).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7),
-    [attendance, currentUser]);
+    attendance.filter((a) => a.employeeId === user.id).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10),
+    [attendance, user.id]);
 
+  // Geolocation
   const nearestBranch = useMemo(() => {
     if (!coords) return null;
     return branches
       .map((b) => ({ ...b, distance: haversineMeters(coords, { lat: b.latitude, lng: b.longitude }) }))
       .sort((a, b) => a.distance - b.distance)[0];
   }, [coords, branches]);
-
   const inRange = nearestBranch ? nearestBranch.distance <= nearestBranch.radius : false;
 
   const handleCheckIn = useCallback(() => {
     if (!inRange || !coords || !nearestBranch) { toast.error("Not within branch radius"); return; }
+    if (todayRecord) { toast.error("Already checked in today"); return; }
     const rec = {
-      id: String(Date.now()), employeeId: currentUser?.id || "3",
-      employeeName: currentUser?.name || "Employee", date: today,
+      id: String(Date.now()), employeeId: user.id,
+      employeeName: user.name, date: today,
       checkIn: currentTime.toTimeString().slice(0, 5),
       checkInLocation: { lat: coords.lat, lng: coords.lng, address: nearestBranch.name },
       status: "Present" as const, branch: nearestBranch.name,
     };
     setAttendance([...attendance, rec]);
     toast.success("Checked in successfully!");
-  }, [inRange, coords, nearestBranch, currentUser, today, currentTime, attendance]);
+  }, [inRange, coords, nearestBranch, user, today, currentTime, attendance, todayRecord]);
 
   const handleCheckOut = useCallback(() => {
     if (!inRange || !coords || !nearestBranch || !todayRecord) { toast.error("Cannot check out"); return; }
+    if (todayRecord.checkOut) { toast.error("Already checked out today"); return; }
     const checkInTime = new Date(`${today}T${todayRecord.checkIn}:00`);
     const workHours = (currentTime.getTime() - checkInTime.getTime()) / 3_600_000;
-    const updated = attendance.map((a) =>
+    setAttendance(attendance.map((a) =>
       a.id === todayRecord.id
         ? { ...a, checkOut: currentTime.toTimeString().slice(0, 5), checkOutLocation: { lat: coords.lat, lng: coords.lng, address: nearestBranch.name }, workHours }
         : a
-    );
-    setAttendance(updated);
+    ));
     toast.success(`Checked out — ${workHours.toFixed(1)}h worked`);
   }, [inRange, coords, nearestBranch, todayRecord, today, currentTime, attendance]);
 
@@ -101,187 +119,328 @@ export default function EmployeePortal() {
     }
     const days = Math.ceil((new Date(leaveForm.endDate).getTime() - new Date(leaveForm.startDate).getTime()) / 86_400_000) + 1;
     setLeaveApplications([...leaveApplications, {
-      id: String(Date.now()), employeeId: currentUser?.id || "3",
-      employeeName: currentUser?.name || "Employee", leaveType: leaveForm.leaveType,
-      startDate: leaveForm.startDate, endDate: leaveForm.endDate, days,
-      reason: leaveForm.reason, status: "Pending", appliedOn: new Date().toISOString(),
+      id: String(Date.now()), employeeId: user.id, employeeName: user.name,
+      leaveType: leaveForm.leaveType, startDate: leaveForm.startDate, endDate: leaveForm.endDate,
+      days, reason: leaveForm.reason, status: "Pending", appliedOn: new Date().toISOString(),
     }]);
     toast.success("Leave application submitted!");
     setLeaveDialogOpen(false);
     setLeaveForm({ leaveType: "", startDate: "", endDate: "", reason: "" });
-  }, [leaveForm, leaveApplications, currentUser]);
+  }, [leaveForm, leaveApplications, user]);
+
+  const saveProfile = useCallback(() => {
+    if (!currentEmployee) return;
+    setEmployees(employees.map((e) =>
+      e.id === user.id ? { ...e, phone: profileForm.phone, address: profileForm.address, emergencyContact: profileForm.emergencyContact } : e
+    ));
+    setEditingProfile(false);
+    toast.success("Profile updated");
+  }, [currentEmployee, employees, user.id, profileForm]);
 
   const greeting = currentTime.getHours() < 12 ? "Morning" : currentTime.getHours() < 17 ? "Afternoon" : "Evening";
 
-  const statusColor: Record<string, string> = {
-    Present: "bg-green-100 text-green-700", Absent: "bg-red-100 text-red-700",
-    "Half Day": "bg-yellow-100 text-yellow-700", "On Leave": "bg-blue-100 text-blue-700",
-    Weekend: "bg-gray-100 text-gray-600", Holiday: "bg-purple-100 text-purple-700",
-  };
-
   return (
-    <div className="max-w-5xl mx-auto space-y-6 py-6 px-4">
+    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6">
       {/* Welcome */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Good {greeting}, {currentEmployee?.firstName || "Employee"} 👋</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">Good {greeting}, {currentEmployee?.firstName || user.name.split(" ")[0]} 👋</h1>
           <p className="text-muted-foreground text-sm">{currentTime.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
         </div>
-        <Button onClick={() => setLeaveDialogOpen(true)} className="gap-2"><Plus className="h-4 w-4" />Apply Leave</Button>
+        <Button onClick={() => setLeaveDialogOpen(true)} className="gap-2 self-start sm:self-auto">
+          <Plus className="h-4 w-4" />Apply Leave
+        </Button>
       </div>
 
       {/* Quick stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard title="Leave Taken" value={totalLeaveDays} sub="days this year" />
-        <StatCard title="Pending Requests" value={pendingLeaves.length} sub="leave requests" />
-        <StatCard title="Days Present" value={myAttendance.filter((a) => a.status === "Present").length} sub="last 7 days" />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+        <StatCard title="Leave Taken" value={totalLeaveDays} sub="approved days" />
+        <StatCard title="Pending" value={pendingLeaves.length} sub="leave requests" />
+        <StatCard title="Days Present" value={myAttendance.filter((a) => a.status === "Present").length} sub="last 10 records" />
         <StatCard title="Last Salary" value={latestSlip ? `₹${latestSlip.netSalary.toLocaleString("en-IN")}` : "N/A"} sub={latestSlip ? formatDate(latestSlip.month + "-01") : ""} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Check In */}
-        <Card className="lg:col-span-1">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><Clock className="h-4 w-4" />Attendance</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-3xl font-bold tabular-nums text-center">{currentTime.toTimeString().slice(0, 5)}</p>
-            {todayRecord && (
-              <div className="text-xs grid grid-cols-2 gap-2 bg-muted rounded-lg p-2">
-                <div><p className="text-muted-foreground">Check In</p><p className="font-medium">{todayRecord.checkIn}</p></div>
-                {todayRecord.checkOut && <div><p className="text-muted-foreground">Check Out</p><p className="font-medium">{todayRecord.checkOut}</p></div>}
-                {todayRecord.workHours && (
-                  <div className="col-span-2">
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-muted-foreground">Target: 8h</span>
-                      <span>{Math.min(100, Math.round((todayRecord.workHours / 8) * 100))}%</span>
-                    </div>
-                    <Progress value={Math.min(100, (todayRecord.workHours / 8) * 100)} className="h-1.5" />
+      <Tabs defaultValue="attendance">
+        <TabsList className="w-full sm:w-auto flex">
+          <TabsTrigger value="attendance" className="flex-1 sm:flex-none">Attendance</TabsTrigger>
+          <TabsTrigger value="leaves" className="flex-1 sm:flex-none">Leaves</TabsTrigger>
+          <TabsTrigger value="payslips" className="flex-1 sm:flex-none">Payslips</TabsTrigger>
+          <TabsTrigger value="profile" className="flex-1 sm:flex-none">My Profile</TabsTrigger>
+        </TabsList>
+
+        {/* ── ATTENDANCE ── */}
+        <TabsContent value="attendance" className="mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+            {/* Check-in card */}
+            <Card className="lg:col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2"><Clock className="h-4 w-4" />Today</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-4xl font-bold tabular-nums text-center tracking-tight">
+                  {currentTime.toTimeString().slice(0, 5)}
+                </p>
+
+                {todayRecord && (
+                  <div className="grid grid-cols-2 gap-2 bg-muted rounded-lg p-2 text-xs">
+                    <div><p className="text-muted-foreground">Check In</p><p className="font-semibold">{todayRecord.checkIn}</p></div>
+                    {todayRecord.checkOut && <div><p className="text-muted-foreground">Check Out</p><p className="font-semibold">{todayRecord.checkOut}</p></div>}
+                    {todayRecord.workHours && (
+                      <div className="col-span-2">
+                        <div className="flex justify-between mb-1">
+                          <span className="text-muted-foreground">Progress (8h target)</span>
+                          <span className="font-medium">{todayRecord.workHours.toFixed(1)}h</span>
+                        </div>
+                        <Progress value={Math.min(100, (todayRecord.workHours / 8) * 100)} className="h-1.5" />
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
-            )}
-            {/* Location */}
-            {!coords ? (
-              <Button onClick={detect} disabled={loading} size="sm" variant="outline" className="w-full gap-1.5">
-                <MapPin className="h-3.5 w-3.5" />{loading ? "Detecting…" : "Detect Location"}
-              </Button>
-            ) : (
-              <div className="text-xs space-y-1">
-                {nearestBranch && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">{nearestBranch.name}</span>
-                    <span className="flex items-center gap-0.5">
-                      {Math.round(nearestBranch.distance)}m
-                      {inRange ? <CheckCircle className="h-3.5 w-3.5 text-green-500" /> : <XCircle className="h-3.5 w-3.5 text-red-500" />}
-                    </span>
+
+                {/* Location */}
+                {!coords ? (
+                  <Button onClick={detect} disabled={locLoading} size="sm" variant="outline" className="w-full gap-2">
+                    <MapPin className="h-3.5 w-3.5" />{locLoading ? "Detecting…" : "Detect My Location"}
+                  </Button>
+                ) : (
+                  <div className="text-xs space-y-1.5">
+                    {nearestBranch && (
+                      <div className="flex justify-between items-center bg-muted rounded p-2">
+                        <div>
+                          <p className="font-medium">{nearestBranch.name}</p>
+                          <p className="text-muted-foreground">{Math.round(nearestBranch.distance)}m away</p>
+                        </div>
+                        {inRange
+                          ? <CheckCircle className="h-5 w-5 text-green-500" />
+                          : <XCircle className="h-5 w-5 text-red-500" />}
+                      </div>
+                    )}
+                    {!inRange && nearestBranch && (
+                      <p className="text-red-600 dark:text-red-400 text-xs">Must be within {nearestBranch.radius}m to check in/out</p>
+                    )}
+                    <Button size="sm" variant="ghost" className="w-full h-7 text-xs" onClick={detect}>Refresh Location</Button>
                   </div>
                 )}
-                <Button size="sm" variant="ghost" className="w-full text-xs h-6" onClick={detect}>Refresh</Button>
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-2">
-              <Button size="sm" onClick={handleCheckIn} disabled={!!todayRecord || !inRange}>Check In</Button>
-              <Button size="sm" variant="outline" onClick={handleCheckOut} disabled={!todayRecord || !!todayRecord?.checkOut || !inRange}>Check Out</Button>
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Recent attendance */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-2 flex-row items-center justify-between">
-            <CardTitle className="text-sm">Recent Attendance</CardTitle>
-            <Button variant="ghost" size="sm" className="h-6 gap-1 text-xs" onClick={() => navigate("/attendance")}>View All <ChevronRight className="h-3 w-3" /></Button>
-          </CardHeader>
-          <CardContent>
-            {myAttendance.length > 0 ? (
-              <div className="space-y-2">
-                {myAttendance.map((rec) => (
-                  <div key={rec.id} className="flex items-center justify-between text-sm">
-                    <div>
-                      <p className="font-medium">{new Date(rec.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</p>
-                      {rec.checkIn && <p className="text-xs text-muted-foreground">{rec.checkIn} → {rec.checkOut || "—"}</p>}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {rec.workHours && <span className="text-xs text-muted-foreground">{rec.workHours.toFixed(1)}h</span>}
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor[rec.status] || "bg-gray-100"}`}>{rec.status}</span>
-                    </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button size="sm" onClick={handleCheckIn} disabled={!!todayRecord || !inRange} className="gap-1">
+                    Check In
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={handleCheckOut} disabled={!todayRecord || !!todayRecord?.checkOut || !inRange} className="gap-1">
+                    Check Out
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Attendance history */}
+            <Card className="lg:col-span-3">
+              <CardHeader className="pb-2 flex-row items-center justify-between">
+                <CardTitle className="text-sm">My Attendance</CardTitle>
+                <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={() => navigate("/attendance")}>View All <ChevronRight className="h-3 w-3" /></Button>
+              </CardHeader>
+              <CardContent>
+                {myAttendance.length > 0 ? (
+                  <div className="space-y-2">
+                    {myAttendance.map((rec) => (
+                      <div key={rec.id} className="flex items-center justify-between text-sm py-1 border-b last:border-0">
+                        <div>
+                          <p className="font-medium">{new Date(rec.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</p>
+                          {rec.checkIn && <p className="text-xs text-muted-foreground">{rec.checkIn} → {rec.checkOut || "—"}</p>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {rec.workHours && <span className="text-xs text-muted-foreground">{rec.workHours.toFixed(1)}h</span>}
+                          <StatusBadge status={rec.status} />
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            ) : <p className="text-sm text-muted-foreground text-center py-6">No attendance records yet</p>}
-          </CardContent>
-        </Card>
-      </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-8">No attendance records yet</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Leave requests */}
-        <Card>
-          <CardHeader className="pb-2 flex-row items-center justify-between">
-            <CardTitle className="text-sm">My Leave Requests</CardTitle>
-            <Button variant="ghost" size="sm" className="h-6 gap-1 text-xs" onClick={() => navigate("/leave/applications")}>View All <ChevronRight className="h-3 w-3" /></Button>
-          </CardHeader>
-          <CardContent>
-            {myLeaves.length > 0 ? (
-              <div className="space-y-2">
-                {myLeaves.slice(0, 4).map((leave) => (
-                  <div key={leave.id} className="flex justify-between items-center text-sm">
-                    <div>
-                      <p className="font-medium">{leave.leaveType}</p>
-                      <p className="text-xs text-muted-foreground">{formatDate(leave.startDate)} · {leave.days} day(s)</p>
+        {/* ── LEAVES ── */}
+        <TabsContent value="leaves" className="mt-4 space-y-4">
+          <div className="flex justify-between items-center">
+            <p className="text-sm font-medium text-muted-foreground">{myLeaves.length} total application(s)</p>
+            <Button size="sm" onClick={() => setLeaveDialogOpen(true)} className="gap-1">
+              <Plus className="h-4 w-4" />Apply Leave
+            </Button>
+          </div>
+
+          {myLeaves.length > 0 ? (
+            <div className="space-y-2">
+              {myLeaves.map((leave) => (
+                <Card key={leave.id}>
+                  <CardContent className="p-3 flex items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm">{leave.leaveType}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDate(leave.startDate)} → {formatDate(leave.endDate)} · {leave.days} day(s)
+                      </p>
+                      {leave.reason && <p className="text-xs text-muted-foreground truncate mt-0.5">{leave.reason}</p>}
+                      {leave.rejectionReason && (
+                        <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">Reason: {leave.rejectionReason}</p>
+                      )}
                     </div>
                     <StatusBadge status={leave.status} />
-                  </div>
-                ))}
-              </div>
-            ) : <p className="text-sm text-muted-foreground text-center py-6">No leave requests yet</p>}
-          </CardContent>
-        </Card>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card><CardContent className="py-12 text-center text-muted-foreground text-sm">No leave applications yet</CardContent></Card>
+          )}
+        </TabsContent>
 
-        {/* Upcoming holidays */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><Calendar className="h-4 w-4" />Upcoming Holidays</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {upcomingHolidays.length > 0 ? (
-              <div className="space-y-2">
-                {upcomingHolidays.map((h) => (
-                  <div key={h.id} className="flex justify-between items-center text-sm">
+        {/* ── PAYSLIPS ── */}
+        <TabsContent value="payslips" className="mt-4 space-y-3">
+          {myPayroll.length > 0 ? (
+            myPayroll.map((p) => (
+              <Card key={p.id}>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-3">
                     <div>
-                      <p className="font-medium">{h.name}</p>
-                      <p className="text-xs text-muted-foreground">{formatDate(h.date)}</p>
+                      <p className="font-semibold">{new Date(p.month + "-01").toLocaleDateString("en-US", { month: "long", year: "numeric" })}</p>
+                      <StatusBadge status={p.status} className="mt-0.5" />
                     </div>
-                    <StatusBadge status={h.type} />
+                    <p className="text-xl font-bold text-primary">₹{p.netSalary.toLocaleString("en-IN")}</p>
                   </div>
-                ))}
-              </div>
-            ) : <p className="text-sm text-muted-foreground text-center py-6">No upcoming holidays</p>}
-          </CardContent>
-        </Card>
-      </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    <div><p className="text-muted-foreground">Basic</p><p className="font-medium">₹{p.basicSalary.toLocaleString("en-IN")}</p></div>
+                    <div><p className="text-muted-foreground">Allowances</p><p className="font-medium text-green-600">+₹{p.allowances.toLocaleString("en-IN")}</p></div>
+                    <div><p className="text-muted-foreground">Deductions</p><p className="font-medium text-red-600">-₹{p.deductions.toLocaleString("en-IN")}</p></div>
+                    <div><p className="text-muted-foreground">Tax</p><p className="font-medium text-red-600">-₹{p.tax.toLocaleString("en-IN")}</p></div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            <Card><CardContent className="py-12 text-center text-muted-foreground text-sm">No payslips available yet</CardContent></Card>
+          )}
+        </TabsContent>
 
-      {/* Latest payslip */}
-      {latestSlip && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><DollarSign className="h-4 w-4" />Latest Payslip — {formatDate(latestSlip.month + "-01")}</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-            <div><p className="text-muted-foreground text-xs">Basic</p><p className="font-medium">₹{latestSlip.basicSalary.toLocaleString("en-IN")}</p></div>
-            <div><p className="text-muted-foreground text-xs">Allowances</p><p className="font-medium">+₹{latestSlip.allowances.toLocaleString("en-IN")}</p></div>
-            <div><p className="text-muted-foreground text-xs">Deductions</p><p className="font-medium text-red-600">-₹{(latestSlip.deductions + latestSlip.tax).toLocaleString("en-IN")}</p></div>
-            <div><p className="text-muted-foreground text-xs">Net Pay</p><p className="font-bold text-primary">₹{latestSlip.netSalary.toLocaleString("en-IN")}</p></div>
-          </CardContent>
-        </Card>
-      )}
+        {/* ── MY PROFILE ── */}
+        <TabsContent value="profile" className="mt-4">
+          <Card>
+            <CardHeader className="pb-3 flex-row items-center justify-between">
+              <div className="flex items-center gap-2">
+                <User className="h-5 w-5 text-primary" />
+                <div>
+                  <CardTitle className="text-sm">My Profile</CardTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5">You can edit your contact details. HR/Admin fields are read-only.</p>
+                </div>
+              </div>
+              {editingProfile ? (
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => { setEditingProfile(false); setProfileForm({ phone: currentEmployee?.phone ?? "", address: currentEmployee?.address ?? "", emergencyContact: currentEmployee?.emergencyContact ?? "" }); }} className="gap-1">
+                    <X className="h-3.5 w-3.5" />Cancel
+                  </Button>
+                  <Button size="sm" onClick={saveProfile} className="gap-1">
+                    <Save className="h-3.5 w-3.5" />Save
+                  </Button>
+                </div>
+              ) : (
+                <Button size="sm" variant="outline" onClick={() => setEditingProfile(true)} className="gap-1">
+                  <Edit className="h-3.5 w-3.5" />Edit
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Read-only HR fields */}
+              <div className="rounded-lg bg-muted/50 p-3 space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">HR / Admin Managed</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  {[
+                    ["Full Name", `${currentEmployee?.firstName ?? ""} ${currentEmployee?.lastName ?? ""}`],
+                    ["Employee ID", currentEmployee?.employeeId ?? "—"],
+                    ["Department", currentEmployee?.department ?? "—"],
+                    ["Designation", currentEmployee?.designation ?? "—"],
+                    ["Branch", currentEmployee?.branch ?? "—"],
+                    ["Date of Joining", currentEmployee?.dateOfJoining ? formatDate(currentEmployee.dateOfJoining) : "—"],
+                    ["Email", currentEmployee?.email ?? "—"],
+                    ["Gender", currentEmployee?.gender ?? "—"],
+                    ["Blood Group", currentEmployee?.bloodGroup ?? "—"],
+                    ["Date of Birth", currentEmployee?.dateOfBirth ? formatDate(currentEmployee.dateOfBirth) : "—"],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <p className="text-xs text-muted-foreground">{label}</p>
+                      <p className="font-medium">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Editable fields */}
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Self-Service Fields</p>
+
+                <div>
+                  <Label>Phone Number</Label>
+                  {editingProfile ? (
+                    <Input className="mt-1" value={profileForm.phone} onChange={(e) => setProfileForm((p) => ({ ...p, phone: e.target.value }))} />
+                  ) : (
+                    <p className="text-sm mt-1">{currentEmployee?.phone || "—"}</p>
+                  )}
+                </div>
+
+                <div>
+                  <Label>Home Address</Label>
+                  {editingProfile ? (
+                    <Textarea className="mt-1 resize-none" rows={2} value={profileForm.address} onChange={(e) => setProfileForm((p) => ({ ...p, address: e.target.value }))} />
+                  ) : (
+                    <p className="text-sm mt-1">{currentEmployee?.address || "—"}</p>
+                  )}
+                </div>
+
+                <div>
+                  <Label>Emergency Contact</Label>
+                  {editingProfile ? (
+                    <Input className="mt-1" value={profileForm.emergencyContact} onChange={(e) => setProfileForm((p) => ({ ...p, emergencyContact: e.target.value }))} />
+                  ) : (
+                    <p className="text-sm mt-1">{currentEmployee?.emergencyContact || "—"}</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Upcoming holidays panel */}
+          <Card className="mt-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2"><Calendar className="h-4 w-4" />Upcoming Holidays</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {upcomingHolidays.length > 0 ? (
+                <div className="space-y-2">
+                  {upcomingHolidays.map((h) => (
+                    <div key={h.id} className="flex justify-between items-center text-sm">
+                      <div>
+                        <p className="font-medium">{h.name}</p>
+                        <p className="text-xs text-muted-foreground">{formatDate(h.date)}</p>
+                      </div>
+                      <Badge variant="outline" className="text-xs">{h.type}</Badge>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No upcoming holidays</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Leave Dialog */}
       <Dialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Apply for Leave</DialogTitle>
-            <DialogDescription>Submit a new leave request</DialogDescription>
+            <DialogDescription>Submit a new leave request for approval</DialogDescription>
           </DialogHeader>
           <form onSubmit={submitLeave} className="space-y-4">
             <div>
@@ -292,10 +451,26 @@ export default function EmployeePortal() {
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Start Date *</Label><Input type="date" className="mt-1" value={leaveForm.startDate} onChange={(e) => setLeaveForm((p) => ({ ...p, startDate: e.target.value }))} /></div>
-              <div><Label>End Date *</Label><Input type="date" className="mt-1" value={leaveForm.endDate} onChange={(e) => setLeaveForm((p) => ({ ...p, endDate: e.target.value }))} /></div>
+              <div>
+                <Label>Start Date *</Label>
+                <Input type="date" className="mt-1" value={leaveForm.startDate} onChange={(e) => setLeaveForm((p) => ({ ...p, startDate: e.target.value }))} />
+              </div>
+              <div>
+                <Label>End Date *</Label>
+                <Input type="date" className="mt-1" value={leaveForm.endDate} onChange={(e) => setLeaveForm((p) => ({ ...p, endDate: e.target.value }))} />
+              </div>
             </div>
-            <div><Label>Reason *</Label><Textarea className="mt-1" value={leaveForm.reason} onChange={(e) => setLeaveForm((p) => ({ ...p, reason: e.target.value }))} rows={3} /></div>
+            {leaveForm.startDate && leaveForm.endDate && (
+              <p className="text-sm text-muted-foreground">
+                Total: <span className="font-medium text-foreground">
+                  {Math.max(0, Math.ceil((new Date(leaveForm.endDate).getTime() - new Date(leaveForm.startDate).getTime()) / 86_400_000) + 1)} day(s)
+                </span>
+              </p>
+            )}
+            <div>
+              <Label>Reason *</Label>
+              <Textarea className="mt-1" value={leaveForm.reason} onChange={(e) => setLeaveForm((p) => ({ ...p, reason: e.target.value }))} rows={3} />
+            </div>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setLeaveDialogOpen(false)}>Cancel</Button>
               <Button type="submit">Submit Application</Button>

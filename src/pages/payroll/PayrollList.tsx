@@ -223,7 +223,10 @@ export default function PayrollList() {
               <div className="flex justify-between font-bold text-lg bg-primary/5 rounded-lg px-3 py-2">
                 <span>Net Salary</span><span className="text-primary">${slipEntry.netSalary.toLocaleString()}</span>
               </div>
-              <Button variant="outline" className="w-full gap-2" onClick={() => window.print()}><Printer className="h-4 w-4" />Print Slip</Button>
+                      <Button variant="outline" className="w-full gap-2 print:hidden" onClick={() => window.print()}><Printer className="h-4 w-4" />Print Payslip</Button>
+              <div className="hidden print:block print-slip">
+                <style>{`@media print { body > * { display: none !important; } .print-slip { display: block !important; } dialog, [role='dialog'] { display: block !important; border: none; box-shadow: none; } }`}</style>
+              </div>
             </div>
           )}
         </DialogContent>

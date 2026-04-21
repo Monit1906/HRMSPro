@@ -68,3 +68,26 @@
     -webkit-overflow-scrolling: touch;
   }
 }
+
+/* ── Print styles for payslip ── */
+@media print {
+  /* Hide everything except the dialog content */
+  body > #root > * { display: none !important; }
+  /* Show only the payslip dialog */
+  [role="dialog"] {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: white !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 24px !important;
+    overflow: visible !important;
+    transform: none !important;
+  }
+  /* Hide the print button and overlay */
+  .print\:hidden { display: none !important; }
+  [data-overlay="true"] { display: none !important; }
+}

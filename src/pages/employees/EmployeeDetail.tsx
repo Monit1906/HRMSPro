@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Mail, Phone, MapPin, Calendar, Building2, Briefcase, Edit, Save, X, Award } from "lucide-react";
@@ -11,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getEmployees, setEmployees, getDepartments, getDesignations, getBranches, getAttendance, getLeaveApplications, getPayroll } from "@/lib/mockData";
+import { ClipboardCheck } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
 import StatCard from "@/components/ui/StatCard";
 import EmptyState from "@/components/ui/EmptyState";
@@ -99,7 +101,10 @@ export default function EmployeeDetail() {
               <Button variant="outline" onClick={handleCancel} className="gap-1"><X className="h-4 w-4" />Cancel</Button>
             </>
           ) : (
-            <Button variant="outline" onClick={() => setEditing(true)} className="gap-1"><Edit className="h-4 w-4" />Edit Profile</Button>
+            <> {/* Added a Fragment here to wrap multiple JSX elements */}
+              <Button variant="outline" onClick={() => setEditing(true)} className="gap-1"><Edit className="h-4 w-4" />Edit Profile</Button>
+              <Button variant="outline" onClick={() => navigate(`/employees/${id}/onboarding`)} className="gap-1"><ClipboardCheck className="h-4 w-4" />Onboarding</Button>
+            </>
           )}
         </div>
       </div>

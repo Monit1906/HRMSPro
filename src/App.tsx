@@ -32,6 +32,7 @@ const RecruitmentPage   = lazy(() => import("@/pages/recruitment/RecruitmentPage
 const CompanySettings   = lazy(() => import("@/pages/settings/CompanySettings"));
 const ExpenseClaimsPage = lazy(() => import("@/pages/expenses/ExpenseClaimsPage"));
 const ShiftManagementPage = lazy(() => import("@/pages/shifts/ShiftManagementPage"));
+const EmployeeOnboarding = lazy(() => import("@/pages/employees/EmployeeOnboarding"));
 const NotFound          = lazy(() => import("@/pages/NotFound"));
 
 function App() {
@@ -46,6 +47,7 @@ function App() {
             <Route path="/employees" element={<EmployeeList />} />
             <Route path="/employees/add" element={<EmployeeAdd />} />
             <Route path="/employees/:id" element={<EmployeeDetail />} />
+            <Route path="/employees/:id/onboarding" element={<EmployeeOnboarding />} />
 
             {/* Setup & Configuration */}
             <Route path="/setup/departments" element={<DepartmentList />} />
