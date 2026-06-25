@@ -117,7 +117,7 @@ export default function EmployeeDetail() {
           <Progress value={attendanceRate} className="h-1 mt-1 rounded-none" />
         </div>
         <StatCard title="Leave Taken" value={`${totalLeaveDays} days`} sub={`${leaves.filter((l) => l.status === "Pending").length} pending`} />
-        <StatCard title="Net Salary" value={latestPayroll ? `$${latestPayroll.netSalary.toLocaleString()}` : "—"} sub={latestPayroll ? `${latestPayroll.salaryStructure || "N/A"} structure` : "No payroll yet"} />
+        <StatCard title="Net Salary" value={latestPayroll ? `₹${latestPayroll.netSalary.toLocaleString("en-IN")}` : "—"} sub={latestPayroll ? `${latestPayroll.salaryStructure || "N/A"} structure` : "No payroll yet"} />
       </div>
 
       <Tabs defaultValue="profile">
@@ -269,11 +269,11 @@ export default function EmployeeDetail() {
                 {payrollData.length > 0 ? payrollData.map((p) => (
                   <TableRow key={p.id}>
                     <TableCell>{new Date(p.month + "-01").toLocaleDateString("en-US", { year: "numeric", month: "long" })}</TableCell>
-                    <TableCell>${p.basicSalary.toLocaleString()}</TableCell>
-                    <TableCell className="text-green-600">+${p.allowances.toLocaleString()}</TableCell>
-                    <TableCell className="text-red-600">-${p.deductions.toLocaleString()}</TableCell>
-                    <TableCell className="text-red-600">-${p.tax.toLocaleString()}</TableCell>
-                    <TableCell className="font-semibold">${p.netSalary.toLocaleString()}</TableCell>
+                    <TableCell>₹{p.basicSalary.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="text-green-600">+₹{p.allowances.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="text-red-600">-₹{p.deductions.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="text-red-600">-₹{p.tax.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="font-semibold">₹{p.netSalary.toLocaleString("en-IN")}</TableCell>
                     <TableCell><StatusBadge status={p.status} /></TableCell>
                   </TableRow>
                 )) : <EmptyState colSpan={7} message="No payroll records" />}

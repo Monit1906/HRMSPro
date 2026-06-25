@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { Download, Filter } from "lucide-react";
+import { Download, Filter, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -224,8 +224,10 @@ export default function Reports() {
   }, []);
 
   return (
-    <div className="space-y-4">
-      <PageHeader title="Reports & Analytics" description="Drill into attendance, leave, and payroll by period, branch, and department" />
+    <div className="space-y-4 reports-printable">
+      <PageHeader title="Reports & Analytics" description="Drill into attendance, leave, and payroll by period, branch, and department">
+        <Button variant="outline" className="gap-2 no-print" onClick={() => window.print()}><Printer className="h-4 w-4" />Print / Save PDF</Button>
+      </PageHeader>
 
       {/* Global Filter Bar */}
       <FilterBar filters={filters} onChange={setFilters} branches={branches} departments={departments} />

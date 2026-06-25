@@ -26,7 +26,7 @@ export default function PayrollList() {
   const [monthFilter, setMonthFilter] = useState("all");
   const [slipId, setSlipId] = useState<string | null>(null);
 
-  const payroll = getPayroll();
+  const payroll  = getPayroll();
   const employees = getEmployees();
 
   const uniqueMonths = useMemo(() => [...new Set(payroll.map((p) => p.month))].sort().reverse(), [payroll]);
@@ -36,29 +36,26 @@ export default function PayrollList() {
     return payroll.filter((e) => {
       const matchSearch = e.employeeName.toLowerCase().includes(q);
       const matchStatus = statusFilter === "all" || e.status === statusFilter;
-      const matchMonth = monthFilter === "all" || e.month === monthFilter;
+      const matchMonth  = monthFilter === "all" || e.month === monthFilter;
       return matchSearch && matchStatus && matchMonth;
     });
   }, [payroll, searchQuery, statusFilter, monthFilter]);
 
   const stats = useMemo(() => ({
     totalGross: payroll.reduce((s, p) => s + p.basicSalary + p.allowances, 0),
-    totalNet: payroll.reduce((s, p) => s + p.netSalary, 0),
-    totalTax: payroll.reduce((s, p) => s + p.tax, 0),
-    paidCount: payroll.filter((p) => p.status === "Paid").length,
+    totalNet:   payroll.reduce((s, p) => s + p.netSalary, 0),
+    totalTax:   payroll.reduce((s, p) => s + p.tax, 0),
+    paidCount:  payroll.filter((p) => p.status === "Paid").length,
   }), [payroll]);
 
   const chartData = useMemo(() => payroll.slice(0, 8).map((p) => ({
-    name: p.employeeName.split(" ")[0],
-    Basic: p.basicSalary,
-    Allowances: p.allowances,
-    Net: p.netSalary,
+    name: p.employeeName.split(" ")[0], Basic: p.basicSalary, Allowances: p.allowances, Net: p.netSalary,
   })), [payroll]);
 
   const pieData = useMemo(() => [
-    { name: "Basic", value: payroll.reduce((s, p) => s + p.basicSalary, 0) },
+    { name: "Basic",      value: payroll.reduce((s, p) => s + p.basicSalary, 0) },
     { name: "Allowances", value: payroll.reduce((s, p) => s + p.allowances, 0) },
-    { name: "Tax", value: payroll.reduce((s, p) => s + p.tax, 0) },
+    { name: "Tax",        value: payroll.reduce((s, p) => s + p.tax, 0) },
     { name: "Deductions", value: payroll.reduce((s, p) => s + p.deductions, 0) },
   ], [payroll]);
 
@@ -75,7 +72,7 @@ export default function PayrollList() {
     );
   }, [filtered]);
 
-  const slipEntry = slipId ? payroll.find((p) => p.id === slipId) : null;
+  const slipEntry    = slipId ? payroll.find((p) => p.id === slipId) : null;
   const slipEmployee = slipEntry ? employees.find((e) => e.id === slipEntry.employeeId) : null;
 
   return (
@@ -86,9 +83,9 @@ export default function PayrollList() {
       </PageHeader>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard title="Total Gross" value={`$${stats.totalGross.toLocaleString()}`} />
-        <StatCard title="Net Disbursed" value={`$${stats.totalNet.toLocaleString()}`} />
-        <StatCard title="Tax Deducted" value={`$${stats.totalTax.toLocaleString()}`} />
+        <StatCard title="Total Gross" value={`₹${stats.totalGross.toLocaleString("en-IN")}`} />
+        <StatCard title="Net Disbursed" value={`₹${stats.totalNet.toLocaleString("en-IN")}`} />
+        <StatCard title="Tax Deducted" value={`₹${stats.totalTax.toLocaleString("en-IN")}`} />
         <StatCard title="Paid Entries" value={stats.paidCount} />
       </div>
 
@@ -102,10 +99,10 @@ export default function PayrollList() {
               <Input placeholder="Search…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
             </div>
             <Select value={monthFilter} onValueChange={setMonthFilter}>
-              <SelectTrigger className="w-40"><SelectValue placeholder="All Months" /></SelectTrigger>
+              <SelectTrigger className="w-44"><SelectValue placeholder="All Months" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Months</SelectItem>
-                {uniqueMonths.map((m) => <SelectItem key={m} value={m}>{new Date(m + "-01").toLocaleDateString("en-US", { year: "numeric", month: "long" })}</SelectItem>)}
+                {uniqueMonths.map((m) => <SelectItem key={m} value={m}>{new Date(m + "-01").toLocaleDateString("en-IN", { year: "numeric", month: "long" })}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -120,21 +117,27 @@ export default function PayrollList() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Employee</TableHead><TableHead>Month</TableHead><TableHead>Basic</TableHead>
-                  <TableHead>Allowances</TableHead><TableHead>Deductions</TableHead><TableHead>Tax</TableHead>
-                  <TableHead>Net Salary</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead>
+                  <TableHead>Employee</TableHead>
+                  <TableHead className="hidden sm:table-cell">Month</TableHead>
+                  <TableHead>Basic</TableHead>
+                  <TableHead className="hidden md:table-cell">Allowances</TableHead>
+                  <TableHead className="hidden md:table-cell">Deductions</TableHead>
+                  <TableHead className="hidden lg:table-cell">Tax</TableHead>
+                  <TableHead>Net Salary</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.map((e) => (
                   <TableRow key={e.id}>
                     <TableCell className="font-medium">{e.employeeName}</TableCell>
-                    <TableCell>{new Date(e.month + "-01").toLocaleDateString("en-US", { year: "numeric", month: "short" })}</TableCell>
-                    <TableCell>${e.basicSalary.toLocaleString()}</TableCell>
-                    <TableCell className="text-green-600">+${e.allowances.toLocaleString()}</TableCell>
-                    <TableCell className="text-red-600">-${e.deductions.toLocaleString()}</TableCell>
-                    <TableCell className="text-red-600">-${e.tax.toLocaleString()}</TableCell>
-                    <TableCell className="font-semibold">${e.netSalary.toLocaleString()}</TableCell>
+                    <TableCell className="hidden sm:table-cell">{new Date(e.month + "-01").toLocaleDateString("en-IN", { year: "numeric", month: "short" })}</TableCell>
+                    <TableCell>₹{e.basicSalary.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="hidden md:table-cell text-green-600">+₹{e.allowances.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="hidden md:table-cell text-red-600">-₹{e.deductions.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="hidden lg:table-cell text-red-600">-₹{e.tax.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="font-semibold">₹{e.netSalary.toLocaleString("en-IN")}</TableCell>
                     <TableCell><StatusBadge status={e.status} /></TableCell>
                     <TableCell>
                       <div className="flex gap-1">
@@ -158,8 +161,8 @@ export default function PayrollList() {
                 <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                   <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: number) => `$${v.toLocaleString()}`} />
+                  <YAxis tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(v: number) => `₹${v.toLocaleString("en-IN")}`} />
                   <Bar dataKey="Basic" fill="#3b82f6" radius={[3, 3, 0, 0]} />
                   <Bar dataKey="Allowances" fill="#14b8a6" radius={[3, 3, 0, 0]} />
                   <Bar dataKey="Net" fill="#10b981" radius={[3, 3, 0, 0]} />
@@ -175,7 +178,7 @@ export default function PayrollList() {
                   <Pie data={pieData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
                     {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                   </Pie>
-                  <Tooltip formatter={(v: number) => `$${v.toLocaleString()}`} />
+                  <Tooltip formatter={(v: number) => `₹${v.toLocaleString("en-IN")}`} />
                 </PieChart>
               </ResponsiveContainer>
             </CardContent>
@@ -188,15 +191,21 @@ export default function PayrollList() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Salary Slip</DialogTitle>
-            <DialogDescription>{slipEntry && new Date(slipEntry.month + "-01").toLocaleDateString("en-US", { year: "numeric", month: "long" })}</DialogDescription>
+            <DialogDescription>{slipEntry && new Date(slipEntry.month + "-01").toLocaleDateString("en-IN", { year: "numeric", month: "long" })}</DialogDescription>
           </DialogHeader>
-          {slipEntry && slipEmployee && (
+          {slipEntry && (
             <div className="space-y-4 text-sm">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="font-semibold text-base">{slipEmployee.firstName} {slipEmployee.lastName}</p>
-                  <p className="text-muted-foreground">{slipEmployee.employeeId} · {slipEmployee.designation}</p>
-                  <p className="text-muted-foreground">{slipEmployee.department} · {slipEmployee.branch}</p>
+                  <p className="font-semibold text-base">
+                    {slipEmployee ? `${slipEmployee.firstName} ${slipEmployee.lastName}` : slipEntry.employeeName}
+                  </p>
+                  {slipEmployee && (
+                    <>
+                      <p className="text-muted-foreground">{slipEmployee.employeeId} · {slipEmployee.designation}</p>
+                      <p className="text-muted-foreground">{slipEmployee.department} · {slipEmployee.branch}</p>
+                    </>
+                  )}
                 </div>
                 <StatusBadge status={slipEntry.status} />
               </div>
@@ -204,29 +213,37 @@ export default function PayrollList() {
                 <div className="space-y-2">
                   <p className="font-medium text-xs uppercase tracking-wide text-muted-foreground">Earnings</p>
                   {[["Basic Salary", slipEntry.basicSalary], ["Allowances", slipEntry.allowances]].map(([l, v]) => (
-                    <div key={l as string} className="flex justify-between"><span className="text-muted-foreground">{l}</span><span>${(v as number).toLocaleString()}</span></div>
+                    <div key={l as string} className="flex justify-between">
+                      <span className="text-muted-foreground">{l}</span>
+                      <span>₹{(v as number).toLocaleString("en-IN")}</span>
+                    </div>
                   ))}
                   <div className="flex justify-between font-medium border-t pt-1">
-                    <span>Gross</span><span>${(slipEntry.basicSalary + slipEntry.allowances).toLocaleString()}</span>
+                    <span>Gross</span>
+                    <span>₹{(slipEntry.basicSalary + slipEntry.allowances).toLocaleString("en-IN")}</span>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <p className="font-medium text-xs uppercase tracking-wide text-muted-foreground">Deductions</p>
                   {[["Deductions", slipEntry.deductions], ["Tax", slipEntry.tax]].map(([l, v]) => (
-                    <div key={l as string} className="flex justify-between"><span className="text-muted-foreground">{l}</span><span className="text-red-600">-${(v as number).toLocaleString()}</span></div>
+                    <div key={l as string} className="flex justify-between">
+                      <span className="text-muted-foreground">{l}</span>
+                      <span className="text-red-600">-₹{(v as number).toLocaleString("en-IN")}</span>
+                    </div>
                   ))}
                   <div className="flex justify-between font-medium border-t pt-1 text-red-600">
-                    <span>Total Ded.</span><span>-${(slipEntry.deductions + slipEntry.tax).toLocaleString()}</span>
+                    <span>Total Ded.</span>
+                    <span>-₹{(slipEntry.deductions + slipEntry.tax).toLocaleString("en-IN")}</span>
                   </div>
                 </div>
               </div>
               <div className="flex justify-between font-bold text-lg bg-primary/5 rounded-lg px-3 py-2">
-                <span>Net Salary</span><span className="text-primary">${slipEntry.netSalary.toLocaleString()}</span>
+                <span>Net Salary</span>
+                <span className="text-primary">₹{slipEntry.netSalary.toLocaleString("en-IN")}</span>
               </div>
-                      <Button variant="outline" className="w-full gap-2 print:hidden" onClick={() => window.print()}><Printer className="h-4 w-4" />Print Payslip</Button>
-              <div className="hidden print:block print-slip">
-                <style>{`@media print { body > * { display: none !important; } .print-slip { display: block !important; } dialog, [role='dialog'] { display: block !important; border: none; box-shadow: none; } }`}</style>
-              </div>
+              <Button variant="outline" className="w-full gap-2 no-print" onClick={() => window.print()}>
+                <Printer className="h-4 w-4" />Print Payslip
+              </Button>
             </div>
           )}
         </DialogContent>

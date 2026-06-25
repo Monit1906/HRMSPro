@@ -69,13 +69,21 @@
   }
 }
 
-/* ── Print styles for payslip ── */
+/* ── Print styles ── */
 @media print {
-  /* Hide everything except the dialog content */
-  body > #root > * { display: none !important; }
-  /* Show only the payslip dialog */
+  /* Hide non-content UI */
+  aside,
+  header,
+  [role="tablist"],
+  .no-print { display: none !important; }
+
+  main {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Payslip dialog — expand to full page */
   [role="dialog"] {
-    display: block !important;
     position: fixed !important;
     inset: 0 !important;
     width: 100% !important;
@@ -83,11 +91,19 @@
     background: white !important;
     border: none !important;
     box-shadow: none !important;
-    padding: 24px !important;
+    padding: 32px !important;
     overflow: visible !important;
     transform: none !important;
+    z-index: 9999 !important;
   }
-  /* Hide the print button and overlay */
-  .print\:hidden { display: none !important; }
+
+  /* Show all tab panels for reports print */
+  [role="tabpanel"] { display: block !important; }
+
+  /* Chart sizes */
+  .recharts-responsive-container {
+    width: 100% !important;
+  }
+
   [data-overlay="true"] { display: none !important; }
 }
