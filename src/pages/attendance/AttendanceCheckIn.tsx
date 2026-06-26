@@ -22,32 +22,31 @@ export default function AttendanceCheckIn() {
   const today     = new Date().toISOString().split("T")[0];
   const todayRecord = attendance.find((a) => a.employeeId === user.id && a.date === today);
   const noBranches = branches.length === 0;
+  const locationPermission = user.locationPermission ?? false;
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Auto-detect location on mount
+  // Auto-detect location on mount if needed
   useEffect(() => {
-    if (!didAutoDetect.current && !noBranches) {
+    if (!didAutoDetect.current && !noBranches && !locationPermission) {
       didAutoDetect.current = true;
       detect();
     }
-  }, [detect, noBranches]); // Added detect and noBranches to dependencies
+  }, [detect, noBranches, locationPermission]);
 
   const nearestBranch = coords && branches.length > 0
     ? branches.map((b) => ({ ...b, distance: haversineMeters(coords, { lat: b.latitude, lng: b.longitude }) })).sort((a, b) => a.distance - b.distance)[0]
     : null;
 
   const inRange = nearestBranch ? nearestBranch.distance <= nearestBranch.radius : false;
-
-  const canCheckIn  = noBranches || inRange;
-  const canCheckOut = noBranches || inRange;
+  const canDoAttendance = locationPermission || noBranches || inRange;
 
   const handleCheckIn = useCallback(() => {
     if (todayRecord) { toast.error("Already checked in today"); return; }
-    if (!noBranches && !inRange) {
+    if (!locationPermission && !noBranches && !inRange) {
       toast.error(!coords ? "Please detect location first" : `Not within branch radius — ${Math.round(nearestBranch?.distance ?? 0)}m from ${nearestBranch?.name ?? "branch"}`);
       return;
     }
@@ -57,15 +56,17 @@ export default function AttendanceCheckIn() {
       ...(coords && nearestBranch ? { checkInLocation: { lat: coords.lat, lng: coords.lng, address: nearestBranch.name } } : {}),
       status: "Present" as const,
       branch: nearestBranch?.name || "—",
+      breaks: [],
+      activeBreak: false,
     };
     setAttendance([...attendance, rec]);
     toast.success("Checked in successfully!");
-  }, [todayRecord, noBranches, inRange, coords, nearestBranch, user, today, currentTime, attendance]);
+  }, [todayRecord, locationPermission, noBranches, inRange, coords, nearestBranch, user, today, currentTime, attendance]);
 
   const handleCheckOut = useCallback(() => {
     if (!todayRecord) { toast.error("No check-in record found"); return; }
     if (todayRecord.checkOut) { toast.error("Already checked out today"); return; }
-    if (!noBranches && !inRange) {
+    if (!locationPermission && !noBranches && !inRange) {
       toast.error(!coords ? "Please detect location first" : "Not within branch radius");
       return;
     }
@@ -77,10 +78,10 @@ export default function AttendanceCheckIn() {
         : a
     ));
     toast.success(`Checked out — ${workHours.toFixed(1)}h worked`);
-  }, [todayRecord, noBranches, inRange, coords, nearestBranch, today, currentTime, attendance]);
+  }, [todayRecord, locationPermission, noBranches, inRange, coords, nearestBranch, today, currentTime, attendance]);
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 gap-6">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 sm:p-6 gap-6">
       <div className="w-full max-w-md space-y-4">
         {/* Clock */}
         <Card>
@@ -113,7 +114,15 @@ export default function AttendanceCheckIn() {
             <CardTitle className="text-sm flex items-center gap-2"><MapPin className="h-4 w-4" />Location Check</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {noBranches ? (
+            {locationPermission ? (
+              <div className="flex items-start gap-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg p-3 text-sm">
+                <CheckCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium">Location check not required for you</p>
+                  <p className="text-xs mt-0.5 opacity-80">HR has granted you open check-in access.</p>
+                </div>
+              </div>
+            ) : noBranches ? (
               <div className="flex items-start gap-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg p-3 text-sm">
                 <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
                 <div>
@@ -139,7 +148,7 @@ export default function AttendanceCheckIn() {
                     </div>
                     {!inRange && (
                       <p className="text-xs text-red-600 dark:text-red-400">
-                        You are {Math.round(nearestBranch.distance - nearestBranch.radius)}m outside the allowed radius.
+                        You are {Math.round(nearestBranch.distance - nearestBranch.radius)}m outside the allowed radius. Check-in not allowed.
                       </p>
                     )}
                   </div>
@@ -152,10 +161,19 @@ export default function AttendanceCheckIn() {
 
         {/* Check In/Out buttons */}
         <div className="grid grid-cols-2 gap-3">
-          <Button onClick={handleCheckIn} disabled={!!todayRecord || (!noBranches && !!coords && !inRange)} className="h-12 text-base">
+          <Button
+            onClick={handleCheckIn}
+            disabled={!!todayRecord || (!canDoAttendance && !!coords)}
+            className="h-12 text-base"
+          >
             Check In
           </Button>
-          <Button onClick={handleCheckOut} disabled={!todayRecord || !!todayRecord?.checkOut || (!noBranches && !!coords && !inRange)} variant="outline" className="h-12 text-base">
+          <Button
+            onClick={handleCheckOut}
+            disabled={!todayRecord || !!todayRecord?.checkOut || (!canDoAttendance && !!coords)}
+            variant="outline"
+            className="h-12 text-base"
+          >
             Check Out
           </Button>
         </div>

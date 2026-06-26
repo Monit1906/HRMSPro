@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getLeaveApplications, setLeaveApplications, getLeaveTypes } from "@/lib/mockData";
+import { getLeaveApplications, setLeaveApplications, getLeaveTypes, deductLeaveBalance, restoreLeaveBalance } from "@/lib/mockData";
 import StatusBadge from "@/components/ui/StatusBadge";
 import PageHeader from "@/components/ui/PageHeader";
 import StatCard from "@/components/ui/StatCard";
@@ -50,17 +50,22 @@ export default function LeaveApplicationList() {
   }, [applications, searchQuery, statusFilter, leaveTypeFilter]);
 
   const handleApprove = useCallback((id: string) => {
-    setLeaveApplications(applications.map((app) =>
-      app.id === id ? { ...app, status: "Approved" as const, approvedBy: "Emily Rodriguez", approvedOn: new Date().toISOString() } : app
+    const app = applications.find((a) => a.id === id);
+    setLeaveApplications(applications.map((a) =>
+      a.id === id ? { ...a, status: "Approved" as const, approvedBy: "HR/Admin", approvedOn: new Date().toISOString() } : a
     ));
+    if (app) deductLeaveBalance(app.employeeId, app.leaveType, app.days);
     toast.success("Leave application approved");
   }, [applications]);
 
   const confirmReject = useCallback(() => {
     if (!selectedId || !rejectionReason.trim()) { toast.error("Please provide a rejection reason"); return; }
-    setLeaveApplications(applications.map((app) =>
-      app.id === selectedId ? { ...app, status: "Rejected" as const, rejectionReason } : app
+    const app = applications.find((a) => a.id === selectedId);
+    setLeaveApplications(applications.map((a) =>
+      a.id === selectedId ? { ...a, status: "Rejected" as const, rejectionReason } : a
     ));
+    // Restore balance if it was previously approved
+    if (app && app.status === "Approved") restoreLeaveBalance(app.employeeId, app.leaveType, app.days);
     toast.success("Leave application rejected");
     setRejectDialogOpen(false);
     setRejectionReason("");

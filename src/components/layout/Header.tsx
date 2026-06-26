@@ -77,7 +77,7 @@ function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
     setTimeout(() => window.location.reload(), 600);
   }, [resetPwd, user.id, verifyPassword]);
 
-  const userInitials = user.name.split(" ").map((n) => n[0]).join("").slice(0, 2);
+  const userInitials = (user.name || user.username || "U").split(" ").map((n: string) => n[0]).join("").slice(0, 2);
 
   return (
     <>
@@ -164,7 +164,7 @@ function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
             <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuLabel className="pb-1">
                 <p className="font-medium">{user.name}</p>
-                <p className="text-xs text-muted-foreground font-normal">{user.email}</p>
+                <p className="text-xs text-muted-foreground font-normal">{user.email || user.username}</p>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
 

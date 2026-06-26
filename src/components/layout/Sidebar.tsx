@@ -3,7 +3,7 @@ import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard, Users, Settings, Calendar, ClipboardList,
   DollarSign, FileText, FileCheck, UserCircle,
-  TrendingUp, Briefcase, Receipt, Clock,
+  TrendingUp, Briefcase, Receipt, Clock, ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/contexts/RoleContext";
@@ -30,7 +30,7 @@ const navigation = [
   {
     name: "Attendance", icon: ClipboardList, roles: ["Admin","HR Manager","Employee"],
     children: [
-      { name: "Attendance Records", href: "/attendance", roles: ["Admin","HR Manager"] },
+      { name: "Attendance Records", href: "/attendance" },
       { name: "Check In/Out", href: "/attendance/checkin" },
     ],
   },
@@ -62,6 +62,7 @@ const navigation = [
       { name: "₹ Branch Payroll Summary", href: "/reports/payroll-summary" },
     ],
   },
+  { name: "User Management", href: "/settings/users", icon: ShieldCheck, roles: ["Admin","HR Manager"] },
   { name: "Company Settings", href: "/settings", icon: Settings, roles: ["Admin"] },
 ] as const;
 

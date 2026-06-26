@@ -35,6 +35,7 @@ const EmployeePortal     = lazy(() => import("@/pages/portal/EmployeePortal"));
 const PerformancePage    = lazy(() => import("@/pages/performance/PerformancePage"));
 const RecruitmentPage    = lazy(() => import("@/pages/recruitment/RecruitmentPage"));
 const CompanySettings    = lazy(() => import("@/pages/settings/CompanySettings"));
+const UserManagement     = lazy(() => import("@/pages/settings/UserManagement"));
 const ExpenseClaimsPage  = lazy(() => import("@/pages/expenses/ExpenseClaimsPage"));
 const ShiftManagementPage = lazy(() => import("@/pages/shifts/ShiftManagementPage"));
 const NotFound           = lazy(() => import("@/pages/NotFound"));
@@ -99,6 +100,7 @@ function AppContent() {
           <Route path="/expenses" element={<ExpenseClaimsPage />} />
           <Route path="/shifts" element={<ShiftManagementPage />} />
           <Route path="/settings" element={<CompanySettings />} />
+          <Route path="/settings/users" element={<UserManagement />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/reports/payroll-summary" element={<PayrollSummaryReport />} />
 

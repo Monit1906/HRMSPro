@@ -5,14 +5,24 @@ export interface Employee {
   designation: string; branch: string; dateOfJoining: string; dateOfBirth: string;
   status: "Active" | "Inactive" | "On Leave"; reportingManagers: string[];
   address: string; emergencyContact: string; bloodGroup?: string; gender: string;
-  monthlySalary?: number;
+  monthlySalary?: number; salaryStructureId?: string; annualCTC?: number;
 }
 export interface Department { id: string; name: string; code: string; description: string; headOfDepartment?: string; employeeCount: number; }
 export interface Designation { id: string; title: string; code: string; level: string; department: string; }
 export interface Branch { id: string; name: string; code: string; address: string; city: string; state: string; country: string; latitude: number; longitude: number; radius: number; contactPerson: string; phone: string; }
-export interface LeaveType { id: string; name: string; code: string; isUnlimited: boolean; requiresApproval: boolean; description: string; color: string; }
+export interface LeaveType { id: string; name: string; code: string; isUnlimited: boolean; requiresApproval: boolean; description: string; color: string; annualAllocation?: number; }
 export interface LeaveApplication { id: string; employeeId: string; employeeName: string; leaveType: string; startDate: string; endDate: string; days: number; reason: string; status: "Pending" | "Approved" | "Rejected"; appliedOn: string; approvedBy?: string; approvedOn?: string; rejectionReason?: string; }
-export interface Attendance { id: string; employeeId: string; employeeName: string; date: string; checkIn?: string; checkOut?: string; checkInLocation?: { lat: number; lng: number; address: string }; checkOutLocation?: { lat: number; lng: number; address: string }; status: "Present" | "Absent" | "Half Day" | "On Leave" | "Weekend" | "Holiday"; workHours?: number; branch: string; }
+export interface LeaveBalance { employeeId: string; leaveTypeId: string; leaveTypeName: string; year: number; allotted: number; taken: number; }
+export interface Attendance {
+  id: string; employeeId: string; employeeName: string; date: string;
+  checkIn?: string; checkOut?: string;
+  checkInLocation?: { lat: number; lng: number; address: string };
+  checkOutLocation?: { lat: number; lng: number; address: string };
+  status: "Present" | "Absent" | "Half Day" | "On Leave" | "Weekend" | "Holiday";
+  workHours?: number; branch: string;
+  breaks?: { start: string; end?: string }[]; // break sessions
+  activeBreak?: boolean;
+}
 export interface Holiday { id: string; name: string; date: string; type: "Public" | "Optional" | "Restricted"; description: string; applicableBranches: string[]; }
 export interface WeekOffConfig { id: string; employeeId?: string; department?: string; branch?: string; weekOffDays: number[]; effectiveFrom: string; }
 export interface PayrollEntry { id: string; employeeId: string; employeeName: string; month: string; basicSalary: number; hra: number; da: number; specialAllowance: number; allowances: number; deductions: number; providentFund: number; professionalTax: number; tax: number; netSalary: number; status: "Draft" | "Processed" | "Paid"; processedOn?: string; paidOn?: string; salaryStructure?: string; }
@@ -24,18 +34,6 @@ export interface Applicant { id: string; jobId: string; jobTitle: string; name: 
 export interface ExpenseClaim { id: string; employeeId: string; employeeName: string; category: string; amount: number; currency: string; date: string; description: string; receiptRef: string; projectCode: string; status: "Pending" | "Approved" | "Rejected" | "Paid"; submittedOn: string; approvedBy?: string; approvedOn?: string; paidOn?: string; rejectionReason?: string; }
 export interface Shift { id: string; name: string; startTime: string; endTime: string; breakMinutes: number; color: string; weekDays: number[]; }
 export interface ShiftAssignment { id: string; employeeId: string; shiftId: string; startDate: string; endDate: string; type: "Permanent" | "Temporary"; }
-
-export interface IndianPayrollEntry {
-  id: string; sno: number; employeeId: string; employeeName: string; fatherName: string;
-  designationName: string; branch: string; month: string; salary: number;
-  mode: "Biometric" | "Manual" | "App"; alt: number; td: number; wd: number;
-  idle: number; idleRate: number; p: number; l: number; a: number; off: number;
-  ded: number; pd: number; na: number; idleAmount: number; minusHrs: number;
-  basic: number; ti1: number; ma: number; hra: number; overTime: number; totalAdd: number;
-  esic: number; pf: number; pt: number; tds: number; pf12: number; pt200: number;
-  esic075: number; bonusDed: number; loan: number; adv: number; rOff: number;
-  totalDed: number; netSalary: number; status: "Draft" | "Processed" | "Paid";
-}
 
 export interface PayrollMasters {
   basicPercent: number; hraPercent: number; ti1Percent: number; ti1Label: string;
@@ -74,6 +72,7 @@ const stores = {
   branches:         makeStore<Branch[]>("hrms_branches"),
   leaveTypes:       makeStore<LeaveType[]>("hrms_leaveTypes"),
   leaves:           makeStore<LeaveApplication[]>("hrms_leaveApplications"),
+  leaveBalances:    makeStore<LeaveBalance[]>("hrms_leaveBalances"),
   attendance:       makeStore<Attendance[]>("hrms_attendance"),
   holidays:         makeStore<Holiday[]>("hrms_holidays"),
   weekOff:          makeStore<WeekOffConfig[]>("hrms_weekOffConfigs"),
@@ -85,7 +84,6 @@ const stores = {
   expenses:         makeStore<ExpenseClaim[]>("hrms_expenseClaims"),
   shifts:           makeStore<Shift[]>("hrms_shifts"),
   shiftAssignments: makeStore<ShiftAssignment[]>("hrms_shiftAssignments"),
-  indianPayroll:    makeStore<IndianPayrollEntry[]>("hrms_v3_indian"),
 };
 
 // Named exports
@@ -101,6 +99,8 @@ export const getLeaveTypes         = () => stores.leaveTypes.get();
 export const setLeaveTypes         = (v: LeaveType[]) => stores.leaveTypes.set(v);
 export const getLeaveApplications  = () => stores.leaves.get();
 export const setLeaveApplications  = (v: LeaveApplication[]) => stores.leaves.set(v);
+export const getLeaveBalances      = () => stores.leaveBalances.get();
+export const setLeaveBalances      = (v: LeaveBalance[]) => stores.leaveBalances.set(v);
 export const getAttendance         = () => stores.attendance.get();
 export const setAttendance         = (v: Attendance[]) => stores.attendance.set(v);
 export const getHolidays           = () => stores.holidays.get();
@@ -123,8 +123,54 @@ export const getShifts             = () => stores.shifts.get();
 export const setShifts             = (v: Shift[]) => stores.shifts.set(v);
 export const getShiftAssignments   = () => stores.shiftAssignments.get();
 export const setShiftAssignments   = (v: ShiftAssignment[]) => stores.shiftAssignments.set(v);
-export const getIndianPayroll      = () => stores.indianPayroll.get();
-export const setIndianPayroll      = (v: IndianPayrollEntry[]) => stores.indianPayroll.set(v);
+
+// ─── Leave Balance helpers ────────────────────────────────────────────────────
+export function getLeaveBalanceFor(employeeId: string, year?: number): LeaveBalance[] {
+  const y = year ?? new Date().getFullYear();
+  return getLeaveBalances().filter((b) => b.employeeId === employeeId && b.year === y);
+}
+
+export function ensureLeaveBalances(employeeId: string, year?: number) {
+  const y = year ?? new Date().getFullYear();
+  const types = getLeaveTypes();
+  const existing = getLeaveBalances().filter((b) => b.employeeId === employeeId && b.year === y);
+  const existingTypeIds = new Set(existing.map((b) => b.leaveTypeId));
+  const newEntries: LeaveBalance[] = types
+    .filter((t) => !existingTypeIds.has(t.id))
+    .map((t) => ({
+      employeeId,
+      leaveTypeId: t.id,
+      leaveTypeName: t.name,
+      year: y,
+      allotted: t.annualAllocation ?? 12,
+      taken: 0,
+    }));
+  if (newEntries.length > 0) {
+    setLeaveBalances([...getLeaveBalances(), ...newEntries]);
+  }
+}
+
+export function deductLeaveBalance(employeeId: string, leaveTypeName: string, days: number) {
+  const year = new Date().getFullYear();
+  const balances = getLeaveBalances();
+  const updated = balances.map((b) =>
+    b.employeeId === employeeId && b.leaveTypeName === leaveTypeName && b.year === year
+      ? { ...b, taken: b.taken + days }
+      : b
+  );
+  setLeaveBalances(updated);
+}
+
+export function restoreLeaveBalance(employeeId: string, leaveTypeName: string, days: number) {
+  const year = new Date().getFullYear();
+  const balances = getLeaveBalances();
+  const updated = balances.map((b) =>
+    b.employeeId === employeeId && b.leaveTypeName === leaveTypeName && b.year === year
+      ? { ...b, taken: Math.max(0, b.taken - days) }
+      : b
+  );
+  setLeaveBalances(updated);
+}
 
 export function getPayrollMasters(): PayrollMasters {
   const raw = localStorage.getItem("hrms_payrollMasters");
@@ -147,31 +193,26 @@ export function getCompanySettings(): CompanySettings {
 export function setCompanySettings(v: CompanySettings) { localStorage.setItem("hrms_companySettings", JSON.stringify(v)); }
 
 export function getCurrentUser() {
-  const savedId = localStorage.getItem("hrms_current_user_id") || "2";
-  const userMap: Record<string, { id: string; name: string; role: string; email: string }> = {
-    "1": { id: "1", name: "Rahul Sharma",    role: "Employee",   email: "rahul@techcorp.com" },
-    "2": { id: "2", name: "Priya Patel",     role: "Admin",      email: "priya@techcorp.com" },
-    "3": { id: "3", name: "Emily Rodriguez", role: "HR Manager", email: "emily@techcorp.com" },
-  };
-  return userMap[savedId] ?? userMap["2"];
+  const savedId = localStorage.getItem("hrms_current_user_id") || "su_admin";
+  return { id: savedId, name: "System Admin", role: "Admin", email: "admin@company.com" };
 }
 
 // ─── Reset all app data (keep passwords + session) ───────────────────────────
 export function resetAllData(): void {
-  const keep = new Set(["hrms_passwords", "hrms_current_user_id", "hrms_session", "hrms_theme"]);
+  const keep = new Set(["hrms_passwords", "hrms_current_user_id", "hrms_session", "hrms_theme", "hrms_employee_users"]);
   Object.keys(localStorage)
     .filter((k) => k.startsWith("hrms_") && !keep.has(k))
     .forEach((k) => localStorage.removeItem(k));
 }
 
 // ─── Fresh initialisation — zero data, no seed ───────────────────────────────
-const INIT_KEY = "hrms_v4_initialized";
+const INIT_KEY = "hrms_v5_initialized";
 
 export function initializeMockData() {
   if (localStorage.getItem(INIT_KEY)) return;
 
   // Clear any legacy seed data from older versions
-  const keep = new Set(["hrms_passwords", "hrms_current_user_id", "hrms_session", "hrms_theme"]);
+  const keep = new Set(["hrms_passwords", "hrms_current_user_id", "hrms_session", "hrms_theme", "hrms_employee_users"]);
   Object.keys(localStorage)
     .filter((k) => k.startsWith("hrms_") && !keep.has(k))
     .forEach((k) => localStorage.removeItem(k));
@@ -183,6 +224,7 @@ export function initializeMockData() {
   stores.branches.set([]);
   stores.leaveTypes.set([]);
   stores.leaves.set([]);
+  stores.leaveBalances.set([]);
   stores.attendance.set([]);
   stores.holidays.set([]);
   stores.weekOff.set([]);
@@ -194,7 +236,6 @@ export function initializeMockData() {
   stores.expenses.set([]);
   stores.shifts.set([]);
   stores.shiftAssignments.set([]);
-  stores.indianPayroll.set([]);
 
   setPayrollMasters({ basicPercent: 50, hraPercent: 20, ti1Percent: 10, ti1Label: "Transport Allowance", maFixed: 1250, pfRate: 12, pfCap: 1800, esicRate: 0.75, esicThreshold: 21000 });
 

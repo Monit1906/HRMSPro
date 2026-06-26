@@ -69,6 +69,12 @@
   }
 }
 
+/* ── Mobile improvements ── */
+@layer utilities {
+  .min-h-touch { min-height: 44px; }
+  .text-balance { text-wrap: balance; }
+}
+
 /* ── Print styles ── */
 @media print {
   /* Hide non-content UI */
