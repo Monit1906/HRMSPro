@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Search, MoreVertical, Eye, Edit, Trash2, Upload, Download, KeyRound, X, AlertTriangle, CheckCircle2, Circle } from "lucide-react";
 import { useRole } from "@/contexts/RoleContext";
-import { USERS } from "@/contexts/RoleContext";
+import { SYSTEM_USERS } from "@/contexts/RoleContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -309,7 +309,7 @@ export default function EmployeeList() {
 
   const handleSetPassword = useCallback((targetId: string, newPwd: string) => {
     // Map employee ID to system user ID (for known system users)
-    const systemUser = USERS.find((u) => u.id === targetId);
+    const systemUser = SYSTEM_USERS.find((u) => u.id === targetId);
     const userId = systemUser ? systemUser.id : targetId;
     const ok = setUserPassword(userId, newPwd);
     if (ok) toast.success("Password updated successfully");
