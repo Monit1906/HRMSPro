@@ -40,6 +40,21 @@ export interface PayrollMasters {
   maFixed: number; pfRate: number; pfCap: number; esicRate: number; esicThreshold: number;
 }
 
+export interface IndianPayrollEntry {
+  id: string; sno: number; employeeId: string; employeeName: string;
+  fatherName: string; designationName: string; branch: string; month: string;
+  salary: number; mode: "Biometric" | "Manual" | "Online";
+  alt: number; td: number; wd: number; idle: number; idleRate: number;
+  p: number; l: number; a: number; off: number;
+  ded: number; pd: number; na: number; idleAmount: number; minusHrs: number;
+  basic: number; ti1: number; ma: number; hra: number; overTime: number; totalAdd: number;
+  esic: number; pf: number; pt: number; tds: number;
+  pf12: number; pt200: number; esic075: number;
+  bonusDed: number; loan: number; adv: number; rOff: number;
+  totalDed: number; netSalary: number;
+  status: "Draft" | "Processed" | "Paid";
+}
+
 export interface CompanySettings {
   name: string; legalName: string; email: string; phone: string; website: string;
   address: string; city: string; state: string; country: string; currency: string;
@@ -83,7 +98,8 @@ const stores = {
   applicants:       makeStore<Applicant[]>("hrms_applicants"),
   expenses:         makeStore<ExpenseClaim[]>("hrms_expenseClaims"),
   shifts:           makeStore<Shift[]>("hrms_shifts"),
-  shiftAssignments: makeStore<ShiftAssignment[]>("hrms_shiftAssignments"),
+  shiftAssignments:  makeStore<ShiftAssignment[]>("hrms_shiftAssignments"),
+  indianPayroll:     makeStore<IndianPayrollEntry[]>("hrms_indianPayroll"),
 };
 
 // Named exports
@@ -123,6 +139,8 @@ export const getShifts             = () => stores.shifts.get();
 export const setShifts             = (v: Shift[]) => stores.shifts.set(v);
 export const getShiftAssignments   = () => stores.shiftAssignments.get();
 export const setShiftAssignments   = (v: ShiftAssignment[]) => stores.shiftAssignments.set(v);
+export const getIndianPayroll      = () => stores.indianPayroll.get();
+export const setIndianPayroll      = (v: IndianPayrollEntry[]) => stores.indianPayroll.set(v);
 
 // ─── Leave Balance helpers ────────────────────────────────────────────────────
 export function getLeaveBalanceFor(employeeId: string, year?: number): LeaveBalance[] {
@@ -236,6 +254,7 @@ export function initializeMockData() {
   stores.expenses.set([]);
   stores.shifts.set([]);
   stores.shiftAssignments.set([]);
+  stores.indianPayroll.set([]);
 
   setPayrollMasters({ basicPercent: 50, hraPercent: 20, ti1Percent: 10, ti1Label: "Transport Allowance", maFixed: 1250, pfRate: 12, pfCap: 1800, esicRate: 0.75, esicThreshold: 21000 });
 
