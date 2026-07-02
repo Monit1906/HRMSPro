@@ -3,11 +3,12 @@ import { getLeaveApplications, getHolidays, getPayroll } from "@/lib/mockData";
 
 export interface AppNotification {
   id: string;
-  type: "leave" | "holiday" | "payroll";
+  type: "leave" | "holiday" | "payroll" | "leave_approved" | "leave_rejected";
   title: string;
   message: string;
   timestamp: string;
   read: boolean;
+  employeeId?: string; // for per-employee notifications
 }
 
 interface NotificationsContextValue {
@@ -16,17 +17,31 @@ interface NotificationsContextValue {
   markRead: (id: string) => void;
   markAllRead: () => void;
   refresh: () => void;
+  addLeaveStatusNotif: (employeeId: string, employeeName: string, leaveType: string, status: "Approved" | "Rejected") => void;
 }
 
 const NotificationsContext = createContext<NotificationsContextValue | null>(null);
 const STORAGE_KEY = "hrms_notifications_read";
+const EXTRA_KEY   = "hrms_extra_notifications";
+
+function getExtraNotifications(): AppNotification[] {
+  try {
+    const raw = localStorage.getItem(EXTRA_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveExtraNotifications(notifs: AppNotification[]) {
+  // Keep last 50
+  localStorage.setItem(EXTRA_KEY, JSON.stringify(notifs.slice(-50)));
+}
 
 function buildNotifications(): AppNotification[] {
   const readIds: string[] = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
   const notifs: AppNotification[] = [];
   const today = new Date();
 
-  // Pending leave approvals
+  // Pending leave approvals (for HR/Admin)
   getLeaveApplications()
     .filter((l) => l.status === "Pending")
     .forEach((l) => {
@@ -69,11 +84,17 @@ function buildNotifications(): AppNotification[] {
       notifs.push({
         id, type: "payroll",
         title: `Payroll ${p.status}`,
-        message: `${p.employeeName} — ₹${p.netSalary.toLocaleString()} for ${new Date(p.month + "-01").toLocaleDateString("en-US", { month: "short", year: "numeric" })}`,
+        message: `${p.employeeName} — ₹${p.netSalary.toLocaleString("en-IN")} for ${new Date(p.month + "-01").toLocaleDateString("en-IN", { month: "short", year: "numeric" })}`,
         timestamp: p.processedOn || p.month,
         read: readIds.includes(id),
       });
     });
+
+  // Extra notifications (leave approved/rejected per-employee)
+  const extra = getExtraNotifications();
+  extra.forEach((n) => {
+    notifs.push({ ...n, read: readIds.includes(n.id) });
+  });
 
   return notifs.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 }
@@ -84,7 +105,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(() => setNotifications(buildNotifications()), []);
 
   useEffect(() => {
-    const interval = setInterval(refresh, 30_000);
+    const interval = setInterval(refresh, 15_000); // refresh every 15s
     return () => clearInterval(interval);
   }, [refresh]);
 
@@ -105,10 +126,29 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const addLeaveStatusNotif = useCallback((employeeId: string, employeeName: string, leaveType: string, status: "Approved" | "Rejected") => {
+    const id = `leave-status-${employeeId}-${leaveType}-${Date.now()}`;
+    const newNotif: AppNotification = {
+      id,
+      type: status === "Approved" ? "leave_approved" : "leave_rejected",
+      title: status === "Approved" ? "🎉 Leave Approved!" : "Leave Rejected",
+      message: status === "Approved"
+        ? `Congratulations! Your ${leaveType} leave has been approved.`
+        : `Your ${leaveType} leave request has been rejected.`,
+      timestamp: new Date().toISOString(),
+      read: false,
+      employeeId,
+    };
+    const extra = getExtraNotifications();
+    extra.push(newNotif);
+    saveExtraNotifications(extra);
+    setNotifications(buildNotifications());
+  }, []);
+
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
-    <NotificationsContext.Provider value={{ notifications, unreadCount, markRead, markAllRead, refresh }}>
+    <NotificationsContext.Provider value={{ notifications, unreadCount, markRead, markAllRead, refresh, addLeaveStatusNotif }}>
       {children}
     </NotificationsContext.Provider>
   );

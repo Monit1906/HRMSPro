@@ -1,82 +1,61 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Calculator, Info } from "lucide-react";
+import { ArrowLeft, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import {
   getEmployees, setEmployees, getDepartments, getDesignations, getBranches,
-  getSalaryStructures, type SalaryStructure,
 } from "@/lib/mockData";
 import { toast } from "sonner";
 
 const BLOOD_GROUPS = ["A+","A-","B+","B-","AB+","AB-","O+","O-"];
 
-function calcFromStructure(annualCTC: number, s: SalaryStructure) {
-  const monthly  = annualCTC / 12;
-  const basic    = (monthly * s.basicPercent) / 100;
-  const hra      = (monthly * s.hraPercent) / 100;
-  const da       = (monthly * s.daPercent) / 100;
-  const special  = (monthly * s.specialAllowancePercent) / 100;
-  const pf       = Math.min((basic * s.pfPercent) / 100, 1800);
-  const gross    = basic + hra + da + special;
-  return { basic, hra, da, special, pf, gross, monthly };
-}
-
 export default function EmployeeAdd() {
   const navigate = useNavigate();
-  const departments      = getDepartments();
-  const designations     = getDesignations();
-  const branches         = getBranches();
-  const salaryStructures = getSalaryStructures();
-  const employees        = getEmployees();
+  const departments  = getDepartments();
+  const designations = getDesignations();
+  const branches     = getBranches();
+  const employees    = getEmployees();
 
   const [form, setForm] = useState({
     firstName: "", lastName: "", email: "", phone: "", department: "",
     designation: "", branch: "", dateOfJoining: "", dateOfBirth: "",
     gender: "", address: "", emergencyContact: "", bloodGroup: "",
+    monthlySalary: "",
   });
 
-  const [salaryForm, setSalaryForm] = useState({
-    structureId: "",
-    annualCTC: 0,
-    monthlySalary: 0,
-  });
-
-  const upd     = useCallback((field: string, value: string) => setForm((p) => ({ ...p, [field]: value })), []);
-  const updSal  = useCallback((field: string, value: string | number) => setSalaryForm((p) => ({ ...p, [field]: value })), []);
-
-  const selectedStructure = salaryStructures.find((s) => s.id === salaryForm.structureId);
-  const autoCalc = selectedStructure && salaryForm.annualCTC > 0
-    ? calcFromStructure(salaryForm.annualCTC, selectedStructure)
-    : null;
-
-  const handleApplyStructure = useCallback(() => {
-    if (!autoCalc) return;
-    updSal("monthlySalary", Math.round(autoCalc.monthly));
-    toast.success("Salary computed from CTC");
-  }, [autoCalc, updSal]);
+  const upd = useCallback((field: string, value: string) => setForm((p) => ({ ...p, [field]: value })), []);
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     const newEmployee = {
       id: String(Date.now()),
       employeeId: `EMP${String(employees.length + 1).padStart(3, "0")}`,
-      ...form,
+      firstName: form.firstName,
+      lastName: form.lastName,
+      email: form.email,
+      phone: form.phone,
+      department: form.department,
+      designation: form.designation,
+      branch: form.branch,
+      dateOfJoining: form.dateOfJoining,
+      dateOfBirth: form.dateOfBirth,
+      gender: form.gender,
+      address: form.address,
+      emergencyContact: form.emergencyContact,
+      bloodGroup: form.bloodGroup,
       status: "Active" as const,
       reportingManagers: [],
-      monthlySalary: salaryForm.monthlySalary || undefined,
-      salaryStructureId: salaryForm.structureId || undefined,
-      annualCTC: salaryForm.annualCTC || undefined,
+      monthlySalary: form.monthlySalary ? parseFloat(form.monthlySalary) : undefined,
     };
     setEmployees([...employees, newEmployee]);
     toast.success(`Employee ${form.firstName} ${form.lastName} added successfully`);
     navigate("/employees");
-  }, [form, employees, salaryForm, navigate]);
+  }, [form, employees, navigate]);
 
   return (
     <div className="space-y-4">
@@ -161,92 +140,26 @@ export default function EmployeeAdd() {
               </CardContent>
             </Card>
 
-            {/* Salary Configuration */}
+            {/* Monthly Salary only */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  Salary Configuration
-                  <span className="text-xs font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded">Optional</span>
-                </CardTitle>
-                <CardDescription>Link a salary structure and CTC for payroll auto-processing</CardDescription>
+                <CardTitle className="text-base">Salary</CardTitle>
+                <CardDescription>Monthly salary for payroll calculation</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <Label>Salary Structure</Label>
-                  <Select value={salaryForm.structureId} onValueChange={(v) => updSal("structureId", v)}>
-                    <SelectTrigger className="mt-1 h-9">
-                      <SelectValue placeholder="Select structure (optional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {salaryStructures.length > 0
-                        ? salaryStructures.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)
-                        : <SelectItem value="__none" disabled>No structures configured — add in Payroll → Process</SelectItem>
-                      }
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {salaryForm.structureId && (
-                  <>
-                    <div>
-                      <Label>Annual CTC (₹)</Label>
-                      <div className="flex gap-2 mt-1">
-                        <Input
-                          type="number"
-                          className="h-9 flex-1"
-                          placeholder="e.g. 600000"
-                          value={salaryForm.annualCTC || ""}
-                          onChange={(e) => updSal("annualCTC", parseFloat(e.target.value) || 0)}
-                        />
-                        <Button type="button" variant="outline" size="sm" onClick={handleApplyStructure} className="gap-1 h-9">
-                          <Calculator className="h-3.5 w-3.5" />Compute
-                        </Button>
-                      </div>
-                    </div>
-
-                    {autoCalc && (
-                      <div className="bg-muted/50 rounded-lg p-3 space-y-1.5 text-xs">
-                        <p className="font-semibold text-sm mb-2">Salary Breakdown (Monthly)</p>
-                        {[
-                          ["Basic", autoCalc.basic],
-                          ["HRA", autoCalc.hra],
-                          ["DA", autoCalc.da],
-                          ["Special Allow.", autoCalc.special],
-                        ].map(([l, v]) => (
-                          <div key={l as string} className="flex justify-between">
-                            <span className="text-muted-foreground">{l}</span>
-                            <span>₹{Math.round(v as number).toLocaleString("en-IN")}</span>
-                          </div>
-                        ))}
-                        <Separator className="my-1" />
-                        <div className="flex justify-between font-semibold text-sm">
-                          <span>Gross Monthly</span>
-                          <span className="text-primary">₹{Math.round(autoCalc.gross).toLocaleString("en-IN")}</span>
-                        </div>
-                        <div className="flex justify-between text-red-600">
-                          <span>PF (capped ₹1800)</span>
-                          <span>-₹{Math.round(autoCalc.pf).toLocaleString("en-IN")}</span>
-                        </div>
-                      </div>
-                    )}
-                  </>
+              <CardContent>
+                <Label>Monthly Salary (₹)</Label>
+                <Input
+                  type="number"
+                  className="mt-1 h-9"
+                  placeholder="e.g. 30000"
+                  value={form.monthlySalary}
+                  onChange={(e) => upd("monthlySalary", e.target.value)}
+                />
+                {form.monthlySalary && parseFloat(form.monthlySalary) > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                    <Info className="h-3 w-3" />Annual: ₹{(parseFloat(form.monthlySalary) * 12).toLocaleString("en-IN")}
+                  </p>
                 )}
-
-                <div>
-                  <Label>Monthly Salary (₹)</Label>
-                  <Input
-                    type="number"
-                    className="mt-1 h-9"
-                    placeholder="Or enter directly"
-                    value={salaryForm.monthlySalary || ""}
-                    onChange={(e) => updSal("monthlySalary", parseFloat(e.target.value) || 0)}
-                  />
-                  {salaryForm.monthlySalary > 0 && (
-                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                      <Info className="h-3 w-3" />Annual: ₹{(salaryForm.monthlySalary * 12).toLocaleString("en-IN")}
-                    </p>
-                  )}
-                </div>
               </CardContent>
             </Card>
           </div>

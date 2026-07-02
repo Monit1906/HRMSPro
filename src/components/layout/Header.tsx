@@ -1,7 +1,7 @@
 import { memo, useState, useCallback } from "react";
 import {
   Bell, User, LogOut, Sun, Moon, Monitor, CheckCheck, Calendar, DollarSign,
-  Menu, X, Settings, RotateCcw, KeyRound, ShieldAlert,
+  Menu, X, Settings, RotateCcw, KeyRound, ShieldAlert, AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +47,9 @@ function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
   const [resetBusy, setResetBusy]     = useState(false);
   const [resetError, setResetError]   = useState("");
 
+  // Logout confirmation dialog
+  const [logoutOpen, setLogoutOpen]   = useState(false);
+
   const ThemeIcon = THEME_ICONS[theme];
 
   const cycleTheme = useCallback(() => {
@@ -54,7 +57,12 @@ function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
     setTheme(order[(order.indexOf(theme) + 1) % 3]);
   }, [theme, setTheme]);
 
-  const handleLogout = useCallback(() => {
+  const requestLogout = useCallback(() => {
+    setLogoutOpen(true);
+  }, []);
+
+  const confirmLogout = useCallback(() => {
+    setLogoutOpen(false);
     logout();
     toast.success("Logged out successfully");
   }, [logout]);
@@ -77,7 +85,7 @@ function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
     setTimeout(() => window.location.reload(), 600);
   }, [resetPwd, user.id, verifyPassword]);
 
-  const userInitials = (user.name || user.username || "U").split(" ").map((n: string) => n[0]).join("").slice(0, 2);
+  const userInitials = (user.name || user.username || "U").split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
 
   return (
     <>
@@ -89,9 +97,9 @@ function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
           </Button>
           <div className="flex items-center gap-2">
             <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold select-none shrink-0">
-              HR
+              D
             </div>
-            <span className="font-semibold text-sm hidden sm:block">HRMSPro</span>
+            <span className="font-semibold text-sm hidden sm:block">Daftar</span>
           </div>
         </div>
 
@@ -108,7 +116,7 @@ function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
               <Button variant="ghost" size="icon" className="relative h-9 w-9">
                 <Bell className="h-4 w-4" />
                 {unreadCount > 0 && (
-                  <span className="absolute top-1 right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                  <span className="absolute top-1 right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center animate-pulse">
                     {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
                 )}
@@ -190,13 +198,34 @@ function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
                 </DropdownMenuItem>
               )}
 
-              <DropdownMenuItem onClick={handleLogout}>
+              <DropdownMenuItem onClick={requestLogout}>
                 <LogOut className="mr-2 h-4 w-4" />Logout
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </header>
+
+      {/* Logout confirmation dialog */}
+      <Dialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <div className="flex items-center gap-2 text-orange-500">
+              <AlertTriangle className="h-5 w-5" />
+              <DialogTitle>Sign Out?</DialogTitle>
+            </div>
+            <DialogDescription>
+              Are you sure you want to sign out? Any unsaved changes will be lost.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 justify-end mt-2">
+            <Button variant="outline" onClick={() => setLogoutOpen(false)}>Stay Logged In</Button>
+            <Button variant="destructive" onClick={confirmLogout} className="gap-1.5">
+              <LogOut className="h-4 w-4" />Yes, Sign Out
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Reset confirmation dialog */}
       <Dialog open={resetOpen} onOpenChange={setResetOpen}>

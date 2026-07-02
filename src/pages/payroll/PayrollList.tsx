@@ -26,7 +26,9 @@ export default function PayrollList() {
   const [monthFilter, setMonthFilter] = useState("all");
   const [slipId, setSlipId] = useState<string | null>(null);
 
-  const payroll  = getPayroll();
+  const [tick, setTick] = useState(0);
+  const reload = () => setTick((t) => t + 1);
+  const payroll   = useMemo(() => getPayroll(), [tick]);
   const employees = getEmployees();
 
   const uniqueMonths = useMemo(() => [...new Set(payroll.map((p) => p.month))].sort().reverse(), [payroll]);
@@ -60,9 +62,10 @@ export default function PayrollList() {
   ], [payroll]);
 
   const handleMarkPaid = useCallback((id: string) => {
-    setPayroll(payroll.map((p) => p.id === id ? { ...p, status: "Paid" as const, paidOn: new Date().toISOString() } : p));
+    setPayroll(getPayroll().map((p) => p.id === id ? { ...p, status: "Paid" as const, paidOn: new Date().toISOString() } : p));
+    reload();
     toast.success("Payroll marked as paid");
-  }, [payroll]);
+  }, []);
 
   const handleExport = useCallback(() => {
     exportCsv(

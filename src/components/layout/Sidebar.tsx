@@ -95,7 +95,7 @@ function Sidebar() {
   const role = user.role;
 
   return (
-    <nav className="py-4 px-2 space-y-0.5">
+    <nav className="py-4 px-2 space-y-0.5" aria-label="Daftar navigation">
       {(navigation as unknown as NavItem[]).map((item) => {
         if (item.roles && !item.roles.includes(role)) return null;
 

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Users, UserCheck, Calendar, DollarSign, TrendingUp, Receipt,
   ClipboardList, Gift, ChevronRight, Zap, Clock, CheckCircle, XCircle,
@@ -27,20 +27,21 @@ function EmployeeDashboard() {
   const { user } = useRole();
   const today = new Date().toISOString().split("T")[0];
 
-  const employees       = getEmployees();
-  const myEmployee      = employees.find((e) => e.id === user.id);
-  const attendance      = getAttendance();
-  const leaves          = getLeaveApplications();
-  const payroll         = getPayroll();
-  const holidays        = getHolidays();
+  const employees      = getEmployees();
+  const myEmployee     = employees.find((e) => e.id === user.employeeId || e.id === user.id);
+  const attendance     = getAttendance();
+  const leaves         = getLeaveApplications();
+  const payroll        = getPayroll();
+  const holidays       = getHolidays();
 
-  const myAttendance   = useMemo(() => attendance.filter((a) => a.employeeId === user.id).sort((a, b) => b.date.localeCompare(a.date)), [attendance, user.id]);
-  const myLeaves       = useMemo(() => leaves.filter((l) => l.employeeId === user.id), [leaves, user.id]);
-  const myPayroll      = useMemo(() => payroll.filter((p) => p.employeeId === user.id).sort((a, b) => b.month.localeCompare(a.month)), [payroll, user.id]);
-  const todayRecord    = myAttendance.find((a) => a.date === today);
-  const latestPayslip  = myPayroll[0];
-  const pendingLeaves  = myLeaves.filter((l) => l.status === "Pending").length;
-  const approvedDays   = myLeaves.filter((l) => l.status === "Approved").reduce((s, l) => s + l.days, 0);
+  const myAttendance  = useMemo(() => attendance.filter((a) => a.employeeId === (myEmployee?.id || user.id)).sort((a, b) => b.date.localeCompare(a.date)), [attendance, user.id, myEmployee]);
+  const myLeaves      = useMemo(() => leaves.filter((l) => l.employeeId === (myEmployee?.id || user.id)), [leaves, user.id, myEmployee]);
+  const myPayroll     = useMemo(() => payroll.filter((p) => p.employeeId === (myEmployee?.id || user.id)).sort((a, b) => b.month.localeCompare(a.month)), [payroll, user.id, myEmployee]);
+  const todayRecord   = myAttendance.find((a) => a.date === today);
+  const latestPayslip = myPayroll[0];
+  const pendingLeaves = myLeaves.filter((l) => l.status === "Pending").length;
+  const approvedDays  = myLeaves.filter((l) => l.status === "Approved").reduce((s, l) => s + l.days, 0);
+  const dailyTarget   = user.dailyHoursTarget ?? 8;
 
   const monthPresent = useMemo(() => {
     const monthStr = today.slice(0, 7);
@@ -59,17 +60,17 @@ function EmployeeDashboard() {
       {/* Welcome */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold">Good {greeting}, {myEmployee?.firstName || user.name.split(" ")[0]} 👋</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">Good {greeting}, {myEmployee?.firstName || user.name.split(" ")[0]}</h1>
           <p className="text-sm text-muted-foreground">
             {now.toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button size="sm" variant="outline" onClick={() => navigate("/attendance/checkin")} className="gap-1.5">
             <Clock className="h-4 w-4" />Check In / Out
           </Button>
           <Button size="sm" onClick={() => navigate("/portal")} className="gap-1.5">
-            <Calendar className="h-4 w-4" />Apply Leave
+            <Calendar className="h-4 w-4" />My Portal
           </Button>
         </div>
       </div>
@@ -77,16 +78,14 @@ function EmployeeDashboard() {
       {/* Personal KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
         <StatCard title="Present This Month" value={monthPresent} sub="days this month" icon={<UserCheck className="h-4 w-4" />} />
-        <div>
-          <StatCard
-            title="Today's Status"
-            value={todayRecord ? todayRecord.status : "Not marked"}
-            sub={todayRecord?.checkIn ? `In: ${todayRecord.checkIn}${todayRecord.checkOut ? ` · Out: ${todayRecord.checkOut}` : ""}` : "No check-in yet"}
-          />
-        </div>
+        <StatCard
+          title="Today's Status"
+          value={todayRecord ? todayRecord.status : "Not marked"}
+          sub={todayRecord?.checkIn ? `In: ${todayRecord.checkIn}${todayRecord.checkOut ? ` · Out: ${todayRecord.checkOut}` : " · Active"}` : "No check-in yet"}
+        />
         <StatCard
           title="Leave Balance"
-          value={`${approvedDays} days taken`}
+          value={`${approvedDays} taken`}
           sub={`${pendingLeaves} pending request(s)`}
           icon={<Calendar className="h-4 w-4" />}
           onClick={() => navigate("/portal")}
@@ -122,10 +121,10 @@ function EmployeeDashboard() {
                     {todayRecord.workHours && (
                       <div className="col-span-2">
                         <div className="flex justify-between mb-1 text-xs">
-                          <span className="text-muted-foreground">Progress (8h)</span>
+                          <span className="text-muted-foreground">Progress ({dailyTarget}h target)</span>
                           <span className="font-medium">{todayRecord.workHours.toFixed(1)}h</span>
                         </div>
-                        <Progress value={Math.min(100, (todayRecord.workHours / 8) * 100)} className="h-1.5" />
+                        <Progress value={Math.min(100, (todayRecord.workHours / dailyTarget) * 100)} className="h-1.5" />
                       </div>
                     )}
                   </div>
@@ -158,7 +157,7 @@ function EmployeeDashboard() {
                   <div key={rec.id} className="flex items-center justify-between text-sm border-b last:border-0 pb-1.5 last:pb-0">
                     <div>
                       <p className="font-medium text-sm">{new Date(rec.date).toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "numeric" })}</p>
-                      {rec.checkIn && <p className="text-xs text-muted-foreground">{rec.checkIn} → {rec.checkOut || "—"}</p>}
+                      {rec.checkIn && <p className="text-xs text-muted-foreground">{rec.checkIn} → {rec.checkOut || "active"}</p>}
                     </div>
                     <div className="flex items-center gap-2">
                       {rec.workHours && <span className="text-xs text-muted-foreground">{rec.workHours.toFixed(1)}h</span>}
@@ -205,9 +204,7 @@ function EmployeeDashboard() {
         {/* Upcoming holidays + Payslips */}
         <div className="space-y-4">
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Upcoming Holidays</CardTitle>
-            </CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-sm">Upcoming Holidays</CardTitle></CardHeader>
             <CardContent className="space-y-2">
               {upcomingHolidays.length > 0 ? upcomingHolidays.map((h) => (
                 <div key={h.id} className="flex justify-between items-center text-sm">
@@ -223,9 +220,7 @@ function EmployeeDashboard() {
 
           {latestPayslip && (
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Latest Payslip</CardTitle>
-              </CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">Latest Payslip</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Period</span>
@@ -234,10 +229,6 @@ function EmployeeDashboard() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Net Salary</span>
                   <span className="font-bold text-primary">₹{latestPayslip.netSalary.toLocaleString("en-IN")}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Status</span>
-                  <StatusBadge status={latestPayslip.status} />
                 </div>
                 <Button size="sm" variant="outline" className="w-full mt-1" onClick={() => navigate("/portal")}>View All Payslips</Button>
               </CardContent>
@@ -304,19 +295,20 @@ function AdminDashboard() {
   }, [employees, today]);
 
   const deptSalary = useMemo(() => departments.map((dept) => {
-    const deptEmps   = employees.filter((e) => e.department === dept.name);
+    const deptEmps    = employees.filter((e) => e.department === dept.name);
     const deptPayroll = payroll.filter((p) => deptEmps.some((e) => e.id === p.employeeId));
-    const totalNet   = deptPayroll.reduce((s, p) => s + p.netSalary, 0);
+    const totalNet    = deptPayroll.reduce((s, p) => s + p.netSalary, 0);
     return { dept: dept.name.split(" ")[0], fullName: dept.name, totalNet, headcount: deptEmps.length };
   }).filter((d) => d.totalNet > 0 || d.headcount > 0), [departments, employees, payroll]);
 
+  // Quick actions — NO "Process Payroll" here
   const quickActions = [
-    { title: "Add Employee",    desc: "Onboard new member",       icon: Users,       color: "text-blue-600 bg-blue-50 dark:bg-blue-900/20",     action: () => navigate("/employees/add") },
-    { title: "Process Payroll", desc: "Run monthly salary",       icon: DollarSign,  color: "text-green-600 bg-green-50 dark:bg-green-900/20",  action: () => navigate("/payroll/process") },
-    { title: "Leave Approvals", desc: `${pendingLeaves} pending`, icon: Calendar,    color: "text-orange-600 bg-orange-50 dark:bg-orange-900/20", action: () => navigate("/leave/applications") },
-    { title: "Expense Claims",  desc: `${pendingExpenses} pending`,icon: Receipt,    color: "text-purple-600 bg-purple-50 dark:bg-purple-900/20", action: () => navigate("/expenses") },
-    { title: "Attendance",      desc: "Check in / out",           icon: ClipboardList,color:"text-teal-600 bg-teal-50 dark:bg-teal-900/20",      action: () => navigate("/attendance/checkin") },
-    { title: "Reports",         desc: "View analytics",           icon: TrendingUp,  color: "text-rose-600 bg-rose-50 dark:bg-rose-900/20",     action: () => navigate("/reports") },
+    { title: "Add Employee",    desc: "Onboard new member",       icon: Users,        color: "text-blue-600 bg-blue-50 dark:bg-blue-900/20",      action: () => navigate("/employees/add") },
+    { title: "Leave Approvals", desc: `${pendingLeaves} pending`, icon: Calendar,     color: "text-orange-600 bg-orange-50 dark:bg-orange-900/20", action: () => navigate("/leave/applications") },
+    { title: "Expense Claims",  desc: `${pendingExpenses} pending`,icon: Receipt,     color: "text-purple-600 bg-purple-50 dark:bg-purple-900/20", action: () => navigate("/expenses") },
+    { title: "Attendance",      desc: "Check in / out",           icon: ClipboardList,color: "text-teal-600 bg-teal-50 dark:bg-teal-900/20",       action: () => navigate("/attendance/checkin") },
+    { title: "Reports",         desc: "View analytics",           icon: TrendingUp,   color: "text-rose-600 bg-rose-50 dark:bg-rose-900/20",      action: () => navigate("/reports") },
+    { title: "User Management", desc: "Manage accounts",          icon: Users,        color: "text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20", action: () => navigate("/settings/users") },
   ];
 
   return (
@@ -385,7 +377,7 @@ function AdminDashboard() {
           <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-1.5"><Zap className="h-4 w-4 text-primary" />Quick Actions</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-2">
             {quickActions.map((action) => (
-              <button key={action.title} onClick={action.action} className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted transition-colors text-left">
+              <button key={action.title} onClick={action.action} className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted transition-colors text-left min-h-[44px]">
                 <div className={`p-1.5 rounded-md shrink-0 ${action.color}`}><action.icon className="h-3.5 w-3.5" /></div>
                 <div className="min-w-0">
                   <p className="text-xs font-medium truncate">{action.title}</p>
@@ -488,7 +480,6 @@ function AdminDashboard() {
   );
 }
 
-// ─── Router ────────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const { user } = useRole();
   if (user.role === "Employee") return <EmployeeDashboard />;

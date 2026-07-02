@@ -1,7 +1,8 @@
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, CheckCircle, XCircle, Clock, Download } from "lucide-react";
+import { Plus, Search, CheckCircle, XCircle, Clock, Download, PartyPopper } from "lucide-react";
 import { useRole } from "@/contexts/RoleContext";
+import { useNotifications } from "@/contexts/NotificationsContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,7 +18,29 @@ import StatCard from "@/components/ui/StatCard";
 import EmptyState from "@/components/ui/EmptyState";
 import { exportCsv } from "@/lib/exportCsv";
 import { formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+// ── Congratulations animation overlay ────────────────────────────────────────
+function CongratsOverlay({ name, leaveType, onDone }: { name: string; leaveType: string; onDone: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+      <div
+        className="bg-white dark:bg-gray-900 border shadow-2xl rounded-2xl px-8 py-10 text-center max-w-sm w-full mx-4 pointer-events-auto animate-in zoom-in-50 fade-in duration-300"
+        onClick={onDone}
+      >
+        <div className="text-5xl mb-4">🎉</div>
+        <h2 className="text-2xl font-bold text-green-600 mb-2">Congratulations!</h2>
+        <p className="text-muted-foreground text-sm mb-1">{name}'s leave has been</p>
+        <p className="text-lg font-bold text-primary mb-1">{leaveType} Leave</p>
+        <p className="text-green-600 font-semibold mb-4">✅ Approved!</p>
+        <Button size="sm" onClick={onDone} className="gap-2">
+          <PartyPopper className="h-4 w-4" />Great!
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export default function LeaveApplicationList() {
   const navigate = useNavigate();
@@ -27,9 +50,15 @@ export default function LeaveApplicationList() {
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [congrats, setCongrats] = useState<{ name: string; leaveType: string } | null>(null);
 
   const { can } = useRole();
-  const applications = getLeaveApplications();
+  const { refresh: refreshNotifs, addLeaveStatusNotif } = useNotifications();
+
+  const [tick, setTick] = useState(0);
+  const reload = useCallback(() => setTick((t) => t + 1), []);
+
+  const applications = useMemo(() => getLeaveApplications(), [tick]);
   const leaveTypes = getLeaveTypes();
 
   const stats = useMemo(() => ({
@@ -50,27 +79,38 @@ export default function LeaveApplicationList() {
   }, [applications, searchQuery, statusFilter, leaveTypeFilter]);
 
   const handleApprove = useCallback((id: string) => {
-    const app = applications.find((a) => a.id === id);
-    setLeaveApplications(applications.map((a) =>
+    const apps = getLeaveApplications();
+    const app = apps.find((a) => a.id === id);
+    if (!app) return;
+    setLeaveApplications(apps.map((a) =>
       a.id === id ? { ...a, status: "Approved" as const, approvedBy: "HR/Admin", approvedOn: new Date().toISOString() } : a
     ));
-    if (app) deductLeaveBalance(app.employeeId, app.leaveType, app.days);
-    toast.success("Leave application approved");
-  }, [applications]);
+    deductLeaveBalance(app.employeeId, app.leaveType, app.days);
+    // Show congratulations animation
+    setCongrats({ name: app.employeeName, leaveType: app.leaveType });
+    // Add per-employee notification
+    addLeaveStatusNotif(app.employeeId, app.employeeName, app.leaveType, "Approved");
+    refreshNotifs();
+    reload();
+    toast.success(`${app.employeeName}'s leave approved`);
+  }, [addLeaveStatusNotif, refreshNotifs, reload]);
 
   const confirmReject = useCallback(() => {
     if (!selectedId || !rejectionReason.trim()) { toast.error("Please provide a rejection reason"); return; }
-    const app = applications.find((a) => a.id === selectedId);
-    setLeaveApplications(applications.map((a) =>
+    const apps = getLeaveApplications();
+    const app = apps.find((a) => a.id === selectedId);
+    setLeaveApplications(apps.map((a) =>
       a.id === selectedId ? { ...a, status: "Rejected" as const, rejectionReason } : a
     ));
-    // Restore balance if it was previously approved
     if (app && app.status === "Approved") restoreLeaveBalance(app.employeeId, app.leaveType, app.days);
+    if (app) addLeaveStatusNotif(app.employeeId, app.employeeName, app.leaveType, "Rejected");
+    refreshNotifs();
+    reload();
     toast.success("Leave application rejected");
     setRejectDialogOpen(false);
     setRejectionReason("");
     setSelectedId(null);
-  }, [selectedId, rejectionReason, applications]);
+  }, [selectedId, rejectionReason, addLeaveStatusNotif, refreshNotifs, reload]);
 
   const handleExport = useCallback(() => {
     exportCsv(
@@ -84,6 +124,15 @@ export default function LeaveApplicationList() {
 
   return (
     <div className="space-y-4">
+      {/* Congratulations overlay */}
+      {congrats && (
+        <CongratsOverlay
+          name={congrats.name}
+          leaveType={congrats.leaveType}
+          onDone={() => setCongrats(null)}
+        />
+      )}
+
       <PageHeader title="Leave Applications" description="Review and manage leave requests">
         <Button variant="outline" onClick={handleExport} className="gap-2"><Download className="h-4 w-4" />Export</Button>
         <Button onClick={() => navigate("/leave/applications/add")} className="gap-2"><Plus className="h-4 w-4" />Apply Leave</Button>
@@ -136,7 +185,10 @@ export default function LeaveApplicationList() {
           </TableHeader>
           <TableBody>
             {filtered.map((app) => (
-              <TableRow key={app.id}>
+              <TableRow key={app.id} className={cn(
+                app.status === "Pending" && "bg-orange-50/30 dark:bg-orange-900/10",
+                app.status === "Approved" && "bg-green-50/30 dark:bg-green-900/10",
+              )}>
                 <TableCell className="font-medium">{app.employeeName}</TableCell>
                 <TableCell>{app.leaveType}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">
@@ -150,8 +202,12 @@ export default function LeaveApplicationList() {
                 <TableCell>
                   {app.status === "Pending" && can("approve_leave") && (
                     <div className="flex gap-1">
-                      <Button size="sm" className="h-7 gap-1" onClick={() => handleApprove(app.id)}><CheckCircle className="h-3 w-3" />Approve</Button>
-                      <Button size="sm" variant="destructive" className="h-7 gap-1" onClick={() => { setSelectedId(app.id); setRejectDialogOpen(true); }}><XCircle className="h-3 w-3" />Reject</Button>
+                      <Button size="sm" className="h-7 gap-1 bg-green-600 hover:bg-green-700" onClick={() => handleApprove(app.id)}>
+                        <CheckCircle className="h-3 w-3" />Approve
+                      </Button>
+                      <Button size="sm" variant="destructive" className="h-7 gap-1" onClick={() => { setSelectedId(app.id); setRejectDialogOpen(true); }}>
+                        <XCircle className="h-3 w-3" />Reject
+                      </Button>
                     </div>
                   )}
                   {app.status === "Approved" && app.approvedBy && <p className="text-xs text-muted-foreground">by {app.approvedBy}</p>}
